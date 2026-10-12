@@ -24,6 +24,8 @@ class TokenType(Enum):
     OP_DOT = auto()               # .
     OP_COLON_COLON = auto()       # :: (static member access)
 
+    OP_RANGE = auto()             # .. (range operator)
+
     # Delimiters
     LPAREN = auto()               # (
     RPAREN = auto()               # )
@@ -34,6 +36,7 @@ class TokenType(Enum):
     COMMA = auto()                # ,
     SEMICOLON = auto()            # ;
     NEWLINE = auto()              # \n
+    AT = auto()                   # @ (array subexpression)
 
     # Special
     BACKTICK_ESCAPE = auto()      # `c (escaped character)

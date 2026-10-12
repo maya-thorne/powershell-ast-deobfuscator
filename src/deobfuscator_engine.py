@@ -5,7 +5,7 @@ Iterates AST normalization passes until code convergence is achieved.
 
 import base64
 import re
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from .lexer import PowerShellLexer
 from .normalizer import PowerShellNormalizer
@@ -19,8 +19,8 @@ class PowerShellDeobfuscator:
 
     MAX_ITERATIONS = 10
 
-    def __init__(self, symbols: Optional[Dict[str, str]] = None):
-        self.symbols = symbols or {}
+    def __init__(self, symbols: Optional[Dict[str, Any]] = None):
+        self.symbols = symbols if symbols is not None else {}
 
     def deobfuscate(self, script: str) -> str:
         """

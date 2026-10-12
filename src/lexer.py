@@ -213,8 +213,14 @@ class PowerShellLexer:
 
         # Check for decimal number
         if self.source[self.pos].isdigit():
-            while self.pos < self.length and (self.source[self.pos].isdigit() or self.source[self.pos] == "."):
-                buf.append(self.advance())
+            while self.pos < self.length:
+                if self.source[self.pos] == "." and self.peek(1) == ".":
+                    # '..' range operator upcoming - stop reading number
+                    break
+                if self.source[self.pos].isdigit() or self.source[self.pos] == ".":
+                    buf.append(self.advance())
+                else:
+                    break
             val_str = "".join(buf)
             return Token(type=TokenType.NUMBER_LITERAL, value=val_str, line=start_line, column=start_col, raw=val_str)
 
@@ -228,8 +234,14 @@ class PowerShellLexer:
                     buf.append(self.advance())
                 continue
 
-            if ch.isalnum() or ch in ("_", "-", ".", "\\"):
+            if ch.isalnum() or ch in ("_", "-", "\\"):
                 buf.append(self.advance())
+            elif ch == "." and self.peek(1) != ".":
+                # Type / namespace identifier dot (e.g., System.Net.NetworkCredential)
+                if self.peek(1) and (self.peek(1).isalnum() or self.peek(1) == "_"):
+                    buf.append(self.advance())
+                else:
+                    break
             else:
                 break
 
@@ -289,6 +301,10 @@ class PowerShellLexer:
                 self.advance()
                 tokens.append(Token(TokenType.COMMA, ",", line, col))
                 continue
+            if ch == "@":
+                self.advance()
+                tokens.append(Token(TokenType.AT, "@", line, col))
+                continue
 
             # Operators
             if ch == "|":
@@ -308,6 +324,16 @@ class PowerShellLexer:
                 self.advance()
                 tokens.append(Token(TokenType.OP_COLON_COLON, "::", line, col))
                 continue
+            if ch == ".":
+                if self.peek(1) == ".":
+                    self.advance()
+                    self.advance()
+                    tokens.append(Token(TokenType.OP_RANGE, "..", line, col))
+                    continue
+                else:
+                    self.advance()
+                    tokens.append(Token(TokenType.OP_DOT, ".", line, col))
+                    continue
 
             # Format operator '-f' or parameters
             if ch == "-":

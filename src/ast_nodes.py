@@ -75,3 +75,47 @@ class IdentifierNode(ASTNode):
 @dataclass
 class ParenthesizedExpressionNode(ASTNode):
     expression: ASTNode
+
+
+@dataclass
+class RangeExpressionNode(ASTNode):
+    """Represents PowerShell range expression: start..end (e.g., 1..16)."""
+    start: ASTNode
+    end: ASTNode
+
+
+@dataclass
+class ArrayLiteralNode(ASTNode):
+    """Represents PowerShell array expression: @(item0, item1, ...) or (1, 2, ...)."""
+    elements: List[ASTNode] = field(default_factory=list)
+
+
+@dataclass
+class TypeCastNode(ASTNode):
+    """Represents PowerShell type cast: [type]expr (e.g., [byte[]](1..16))."""
+    type_name: str
+    expression: ASTNode
+
+
+@dataclass
+class MemberAccessNode(ASTNode):
+    """Represents property or field access: target.member (e.g., $cred.Password)."""
+    target: ASTNode
+    member: str
+
+
+@dataclass
+class StaticMemberAccessNode(ASTNode):
+    """Represents static type member access or constructor: [Type]::Member or [Type]::Method(args)."""
+    type_name: str
+    member: str
+    arguments: Optional[List[ASTNode]] = None  # None if property/field access, list if method call
+
+
+@dataclass
+class MethodCallNode(ASTNode):
+    """Represents instance method invocation: target.Method(arg0, arg1, ...)."""
+    target: ASTNode
+    method_name: str
+    arguments: List[ASTNode] = field(default_factory=list)
+

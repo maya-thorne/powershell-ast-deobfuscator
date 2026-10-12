@@ -7,16 +7,22 @@ from typing import List, Optional
 
 from .ast_nodes import (
     ASTNode,
+    ArrayLiteralNode,
     AssignmentNode,
     BinaryOpNode,
     CommandNode,
     FormatOpNode,
     IdentifierNode,
+    MemberAccessNode,
+    MethodCallNode,
     NumberLiteralNode,
     ParenthesizedExpressionNode,
     PipelineNode,
+    RangeExpressionNode,
     ScriptBlockNode,
+    StaticMemberAccessNode,
     StringLiteralNode,
+    TypeCastNode,
     VariableNode,
 )
 from .tokens import Token, TokenType
@@ -73,11 +79,11 @@ class PowerShellParser:
         return ScriptBlockNode(statements=statements)
 
     def parse_statement(self) -> Optional[ASTNode]:
-        # Check variable assignment: $var = expr
+        # Check variable assignment: $var = pipeline_or_expr
         if self.current().type == TokenType.VARIABLE and self.peek().type == TokenType.OP_ASSIGN:
             var_tok = self.advance()
             self.advance()  # Skip '='
-            expr = self.parse_expression()
+            expr = self.parse_pipeline()
             return AssignmentNode(
                 variable=VariableNode(name=var_tok.value),
                 expression=expr,
@@ -123,35 +129,136 @@ class PowerShellParser:
         return self.parse_format_expression()
 
     def parse_format_expression(self) -> ASTNode:
-        left = self.parse_binary_expression()
+        left = self.parse_range_expression()
 
         # Check for '-f' operator: left -f arg0, arg1, ...
         if self.match(TokenType.OP_FORMAT):
-            args = [self.parse_binary_expression()]
+            args = [self.parse_range_expression()]
             while self.match(TokenType.COMMA):
-                args.append(self.parse_binary_expression())
+                args.append(self.parse_range_expression())
             return FormatOpNode(format_string=left, arguments=args)
 
         return left
 
+    def parse_range_expression(self) -> ASTNode:
+        left = self.parse_binary_expression()
+
+        if self.match(TokenType.OP_RANGE):
+            right = self.parse_binary_expression()
+            return RangeExpressionNode(start=left, end=right)
+
+        return left
+
     def parse_binary_expression(self) -> ASTNode:
-        left = self.parse_primary()
+        left = self.parse_postfix_expression()
 
         while self.current().type == TokenType.OP_PLUS:
             op_tok = self.advance()
-            right = self.parse_primary()
+            right = self.parse_postfix_expression()
             left = BinaryOpNode(left=left, operator=op_tok.value, right=right)
 
         return left
 
+    def parse_postfix_expression(self) -> ASTNode:
+        node = self.parse_primary()
+
+        while True:
+            # Member access: node.Member or node.Method(args)
+            if self.match(TokenType.OP_DOT):
+                if self.current().type == TokenType.IDENTIFIER:
+                    member_tok = self.advance()
+                    member_name = member_tok.value
+                    if self.match(TokenType.LPAREN):
+                        args = []
+                        if self.current().type != TokenType.RPAREN:
+                            args.append(self.parse_expression())
+                            while self.match(TokenType.COMMA):
+                                args.append(self.parse_expression())
+                        self.expect(TokenType.RPAREN)
+                        node = MethodCallNode(target=node, method_name=member_name, arguments=args)
+                    else:
+                        node = MemberAccessNode(target=node, member=member_name)
+                    continue
+
+            # Static member access: [Type]::Member or [Type]::Method(args)
+            if self.match(TokenType.OP_COLON_COLON):
+                if self.current().type == TokenType.IDENTIFIER:
+                    member_tok = self.advance()
+                    member_name = member_tok.value
+                    if self.match(TokenType.LPAREN):
+                        args = []
+                        if self.current().type != TokenType.RPAREN:
+                            args.append(self.parse_expression())
+                            while self.match(TokenType.COMMA):
+                                args.append(self.parse_expression())
+                        self.expect(TokenType.RPAREN)
+                        type_name = getattr(node, "name", str(node))
+                        node = StaticMemberAccessNode(type_name=type_name, member=member_name, arguments=args)
+                    else:
+                        type_name = getattr(node, "name", str(node))
+                        node = StaticMemberAccessNode(type_name=type_name, member=member_name, arguments=None)
+                    continue
+
+            break
+
+        return node
+
     def parse_primary(self) -> ASTNode:
         tok = self.current()
 
-        # Parentheses
+        # Parentheses or comma-separated array: (1, 2) or (expr) or (cmd ...)
         if self.match(TokenType.LPAREN):
-            inner = self.parse_expression()
+            first = self.parse_pipeline()
+            if self.match(TokenType.COMMA):
+                elements = [first, self.parse_pipeline()]
+                while self.match(TokenType.COMMA):
+                    elements.append(self.parse_pipeline())
+                self.expect(TokenType.RPAREN)
+                return ArrayLiteralNode(elements=elements)
             self.expect(TokenType.RPAREN)
-            return ParenthesizedExpressionNode(expression=inner)
+            return ParenthesizedExpressionNode(expression=first)
+
+        # Array subexpression: @(item0, item1, ...)
+        if self.match(TokenType.AT):
+            if self.match(TokenType.LPAREN):
+                elements = []
+                if self.current().type != TokenType.RPAREN:
+                    elements.append(self.parse_pipeline())
+                    while self.match(TokenType.COMMA):
+                        elements.append(self.parse_pipeline())
+                self.expect(TokenType.RPAREN)
+                return ArrayLiteralNode(elements=elements)
+            return IdentifierNode(name="@")
+
+        # Type literal or type cast: [Type] or [byte[]](...)
+        if self.match(TokenType.LBRACKET):
+            type_tokens = []
+            bracket_depth = 1
+            while bracket_depth > 0 and self.current().type != TokenType.EOF:
+                if self.current().type == TokenType.LBRACKET:
+                    bracket_depth += 1
+                    type_tokens.append(self.advance().value)
+                elif self.current().type == TokenType.RBRACKET:
+                    bracket_depth -= 1
+                    if bracket_depth == 0:
+                        self.advance()  # consume outer closing ']'
+                        break
+                    else:
+                        type_tokens.append(self.advance().value)
+                else:
+                    type_tokens.append(self.advance().value)
+            type_name = "".join(type_tokens)
+
+            # If followed by '::', it's a static type target
+            if self.current().type == TokenType.OP_COLON_COLON:
+                return IdentifierNode(name=type_name)
+
+            # If followed by an expression, it's a type cast: [byte[]](1..16)
+            if self.current().type in (TokenType.LPAREN, TokenType.VARIABLE, TokenType.AT, TokenType.NUMBER_LITERAL, TokenType.STRING_LITERAL):
+                target_expr = self.parse_postfix_expression()
+                return TypeCastNode(type_name=type_name, expression=target_expr)
+
+            return IdentifierNode(name=type_name)
 
         # String literals
         if tok.type == TokenType.STRING_LITERAL:
@@ -192,3 +299,4 @@ class PowerShellParser:
         # Fallback
         self.advance()
         return IdentifierNode(name=tok.value)
+

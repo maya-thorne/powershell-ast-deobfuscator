@@ -8,31 +8,46 @@ from typing import Any, Dict, List, Optional
 
 from .ast_nodes import (
     ASTNode,
+    ArrayLiteralNode,
     AssignmentNode,
     BinaryOpNode,
     CommandNode,
     FormatOpNode,
     IdentifierNode,
+    MemberAccessNode,
+    MethodCallNode,
     NumberLiteralNode,
     ParenthesizedExpressionNode,
     PipelineNode,
+    RangeExpressionNode,
     ScriptBlockNode,
+    StaticMemberAccessNode,
     StringLiteralNode,
+    TypeCastNode,
     VariableNode,
 )
+from .secure_string_reducer import PowerShellSecureStringReducer
 
 
 class PowerShellNormalizer:
     """
     Traverses and normalizes PowerShell AST nodes.
-    Folds string concatenations, formats '-f' templates, and strips backtick evasion artifacts.
+    Folds string concatenations, formats '-f' templates, resolves SecureString
+    unboxing patterns, and strips backtick evasion artifacts.
     """
 
-    def __init__(self, symbols: Optional[Dict[str, str]] = None):
-        self.symbols = symbols or {}
+    def __init__(self, symbols: Optional[Dict[str, Any]] = None):
+        self.symbols = symbols if symbols is not None else {}
+        self.sec_reducer = PowerShellSecureStringReducer(symbols=self.symbols)
 
     def normalize(self, node: ASTNode) -> ASTNode:
-        return self.visit(node)
+        # Pass 1: Reduce SecureString operations
+        node = self.sec_reducer.reduce(node)
+        # Pass 2: Canonical AST normalizations (folding, backticks)
+        node = self.visit(node)
+        # Pass 3: Secondary reduction pass after constant folding
+        node = self.sec_reducer.reduce(node)
+        return node
 
     def visit(self, node: ASTNode) -> ASTNode:
         if isinstance(node, ScriptBlockNode):
@@ -53,6 +68,21 @@ class PowerShellNormalizer:
             return self.visit_string_literal(node)
         elif isinstance(node, IdentifierNode):
             return self.visit_identifier(node)
+        elif isinstance(node, RangeExpressionNode):
+            return RangeExpressionNode(self.visit(node.start), self.visit(node.end))
+        elif isinstance(node, ArrayLiteralNode):
+            return ArrayLiteralNode(elements=[self.visit(e) for e in node.elements])
+        elif isinstance(node, TypeCastNode):
+            return TypeCastNode(type_name=node.type_name, expression=self.visit(node.expression))
+        elif isinstance(node, MemberAccessNode):
+            return MemberAccessNode(target=self.visit(node.target), member=node.member)
+        elif isinstance(node, StaticMemberAccessNode):
+            norm_args = [self.visit(a) for a in node.arguments] if node.arguments is not None else None
+            return StaticMemberAccessNode(type_name=node.type_name, member=node.member, arguments=norm_args)
+        elif isinstance(node, MethodCallNode):
+            norm_target = self.visit(node.target)
+            norm_args = [self.visit(a) for a in node.arguments]
+            return MethodCallNode(target=norm_target, method_name=node.method_name, arguments=norm_args)
         return node
 
     def visit_script_block(self, node: ScriptBlockNode) -> ScriptBlockNode:
@@ -181,6 +211,34 @@ class PowerShellNormalizer:
             return f"${node.variable.name} = {self.to_source(node.expression)}"
 
         if isinstance(node, ParenthesizedExpressionNode):
+            if isinstance(node.expression, (StringLiteralNode, NumberLiteralNode, IdentifierNode)):
+                return self.to_source(node.expression)
             return f"({self.to_source(node.expression)})"
 
+        if isinstance(node, RangeExpressionNode):
+            return f"{self.to_source(node.start)}..{self.to_source(node.end)}"
+
+        if isinstance(node, ArrayLiteralNode):
+            elements_str = ", ".join(self.to_source(e) for e in node.elements)
+            return f"@({elements_str})"
+
+        if isinstance(node, TypeCastNode):
+            return f"[{node.type_name}]({self.to_source(node.expression)})"
+
+        if isinstance(node, MemberAccessNode):
+            target_str = self.to_source(node.target)
+            return f"{target_str}.{node.member}"
+
+        if isinstance(node, StaticMemberAccessNode):
+            if node.arguments is not None:
+                args_str = ", ".join(self.to_source(a) for a in node.arguments)
+                return f"[{node.type_name}]::{node.member}({args_str})"
+            return f"[{node.type_name}]::{node.member}"
+
+        if isinstance(node, MethodCallNode):
+            target_str = self.to_source(node.target)
+            args_str = ", ".join(self.to_source(a) for a in node.arguments)
+            return f"{target_str}.{node.method_name}({args_str})"
+
         return ""
+

@@ -1,0 +1,17 @@
+# Security Policy
+
+## Supported Versions
+
+| Version | Supported          |
+| ------- | ------------------ |
+| 0.1.x   | :white_check_mark: |
+
+## Reporting a Vulnerability
+
+We prioritize the security of our compiler and deobfuscation engine. If you discover a vulnerability or security defect in this repository:
+
+1. **Do not create a public issue**.
+2. Email findings directly to `zse4123jo@gmail.com` with reproducible artifacts and crash logs.
+3. Include binary traces, sample scripts, and environment details.
+
+Reports are reviewed within 48 hours, and patches are tagged following rigorous unit verification.

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 240" width="1000" height="240">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b1120" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#818cf8" />
+    </linearGradient>
+  </defs>
+  <rect width="1000" height="240" rx="16" fill="url(#bgGrad)" stroke="#1e293b" stroke-width="2" />
+  <circle cx="900" cy="120" r="140" fill="#38bdf8" opacity="0.04" />
+  <circle cx="100" cy="40" r="80" fill="#818cf8" opacity="0.04" />
+  <text x="50" y="75" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="28" font-weight="700" fill="url(#accentGrad)">POWERSHELL AST DEOBFUSCATOR</text>
+  <text x="50" y="115" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#94a3b8">Compiler-Grade Abstract Syntax Tree Parser &amp; Multi-Pass Pushdown Deobfuscation Engine</text>
+  <g transform="translate(50, 150)">
+    <rect x="0" y="0" width="140" height="34" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="70" y="22" font-family="monospace" font-size="12" fill="#38bdf8" text-anchor="middle" font-weight="600">AST Parser</text>
+    <rect x="155" y="0" width="150" height="34" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="230" y="22" font-family="monospace" font-size="12" fill="#818cf8" text-anchor="middle" font-weight="600">Constant Folding</text>
+    <rect x="320" y="0" width="160" height="34" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="400" y="22" font-family="monospace" font-size="12" fill="#a78bfa" text-anchor="middle" font-weight="600">Format Op Resolv</text>
+    <rect x="495" y="0" width="150" height="34" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="570" y="22" font-family="monospace" font-size="12" fill="#34d399" text-anchor="middle" font-weight="600">Fixed-Point Loop</text>
+  </g>
+</svg>

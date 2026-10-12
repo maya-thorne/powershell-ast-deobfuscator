@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "powershell-ast-deobfuscator"
+version = "0.1.0"
+description = "Compiler-Grade AST Parser & Pushdown Automaton Deobfuscation Engine for Windows PowerShell Scripts"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MT-SRL" }
+authors = [
+    { name = "Maya Thorne", email = "zse4123jo@gmail.com" }
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Information Technology",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Compilers",
+    "Topic :: Software Development :: Disassemblers"
+]
+
+[project.urls]
+Homepage = "https://github.com/maya-thorne/powershell-ast-deobfuscator"
+Repository = "https://github.com/maya-thorne/powershell-ast-deobfuscator.git"
+Issues = "https://github.com/maya-thorne/powershell-ast-deobfuscator/issues"
+
+[project.scripts]
+pwsh-ast = "src.cli:main"
+powershell-deobfuscator = "src.cli:main"

@@ -1,0 +1,67 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Environments & Secrets
+.env
+.env.*
+!.env.example
+venv/
+env/
+ENV/
+
+# IDE & OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Local Agent Internal Memory (Zero-Remote Upload)
+memory/
+.gemini/
+
+# Autonomous Dev Logs
+dev_logs/
+.agents/
+
+# Local Autonomous Memory & Maps (Excluded from public GitHub)
+TASK_BACKLOG.md
+ARCHITECTURE_MAP.md
+AUTONOMOUS_SPEC.md
+scripts/

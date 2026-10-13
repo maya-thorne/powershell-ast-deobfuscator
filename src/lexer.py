@@ -20,6 +20,7 @@ class PowerShellLexer:
         self.length = len(source)
         self.line = 1
         self.column = 1
+        self.bracket_depth = 0
 
     def peek(self, offset: int = 0) -> Optional[str]:
         idx = self.pos + offset
@@ -237,8 +238,8 @@ class PowerShellLexer:
             if ch.isalnum() or ch in ("_", "-", "\\"):
                 buf.append(self.advance())
             elif ch == "." and self.peek(1) != ".":
-                # Type / namespace identifier dot (e.g., System.Net.NetworkCredential)
-                if self.peek(1) and (self.peek(1).isalnum() or self.peek(1) == "_"):
+                # Type / namespace identifier dot allowed inside [Type.Name]
+                if self.bracket_depth > 0 and self.peek(1) and (self.peek(1).isalnum() or self.peek(1) == "_"):
                     buf.append(self.advance())
                 else:
                     break
@@ -291,10 +292,12 @@ class PowerShellLexer:
                 continue
             if ch == "[":
                 self.advance()
+                self.bracket_depth += 1
                 tokens.append(Token(TokenType.LBRACKET, "[", line, col))
                 continue
             if ch == "]":
                 self.advance()
+                self.bracket_depth = max(0, self.bracket_depth - 1)
                 tokens.append(Token(TokenType.RBRACKET, "]", line, col))
                 continue
             if ch == ",":
@@ -335,13 +338,40 @@ class PowerShellLexer:
                     tokens.append(Token(TokenType.OP_DOT, ".", line, col))
                     continue
 
-            # Format operator '-f' or parameters
+            # Operators: '-join', '-f', or negative numbers
             if ch == "-":
+                remaining = self.source[self.pos:]
+                if re.match(r"^-join\b", remaining, re.IGNORECASE):
+                    self.pos += 5
+                    self.column += 5
+                    tokens.append(Token(TokenType.OP_JOIN, "-join", line, col))
+                    continue
                 if self.peek(1) in ("f", "F") and (self.pos + 2 >= self.length or not self.source[self.pos + 2].isalnum()):
                     self.advance()
                     self.advance()
                     tokens.append(Token(TokenType.OP_FORMAT, "-f", line, col))
                     continue
+                if self.peek(1) and self.peek(1).isdigit():
+                    last_type = tokens[-1].type if tokens else None
+                    if last_type in (
+                        None,
+                        TokenType.LPAREN,
+                        TokenType.LBRACKET,
+                        TokenType.COMMA,
+                        TokenType.OP_RANGE,
+                        TokenType.OP_ASSIGN,
+                        TokenType.OP_PIPE,
+                        TokenType.OP_JOIN,
+                        TokenType.SEMICOLON,
+                        TokenType.NEWLINE,
+                    ):
+                        self.advance()  # consume '-'
+                        num_tok = self.read_number_or_identifier()
+                        num_tok.value = f"-{num_tok.value}"
+                        if num_tok.raw:
+                            num_tok.raw = f"-{num_tok.raw}"
+                        tokens.append(num_tok)
+                        continue
 
             # String literals
             if ch == "'":

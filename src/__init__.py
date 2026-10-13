@@ -3,7 +3,15 @@ PowerShell AST Deobfuscator & Compiler-Grade Syntax Engine.
 Engineered by Maya Thorne.
 """
 
-from .ast_nodes import ASTNode, CommandNode, ScriptBlockNode, StringLiteralNode, VariableNode
+from .ast_nodes import (
+    ASTNode,
+    CommandNode,
+    IndexAccessNode,
+    ScriptBlockNode,
+    StringLiteralNode,
+    UnaryOpNode,
+    VariableNode,
+)
 from .deobfuscator_engine import PowerShellDeobfuscator
 from .lexer import PowerShellLexer
 from .normalizer import PowerShellNormalizer
@@ -20,8 +28,10 @@ from .secure_string_crypto import (
 from .secure_string_reducer import PowerShellSecureStringReducer
 from .static_key_extractor import StaticKeyExtractor
 from .tokens import Token, TokenType
+from .type_accelerators import TypeAcceleratorRegistry
+from .type_casting_resolver import PowerShellTypeCastingResolver
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __all__ = [
     "TokenType",
     "Token",
@@ -38,10 +48,14 @@ __all__ = [
     "SecureStringDecryptionError",
     "StaticKeyExtractor",
     "PowerShellSecureStringReducer",
+    "TypeAcceleratorRegistry",
+    "PowerShellTypeCastingResolver",
     "ASTNode",
     "ScriptBlockNode",
     "CommandNode",
     "StringLiteralNode",
     "VariableNode",
+    "IndexAccessNode",
+    "UnaryOpNode",
 ]
 

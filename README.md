@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.2.0-blue.svg?style=flat-square" alt="Release v0.2.0" /></a>
+  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.3.0-blue.svg?style=flat-square" alt="Release v0.3.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MT--SRL-emerald.svg?style=flat-square" alt="License MT-SRL" /></a>
   <a href="ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-Active-purple.svg?style=flat-square" alt="Roadmap Active" /></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Policy-red.svg?style=flat-square" alt="Security Policy" /></a>
@@ -43,10 +43,11 @@ Modern PowerShell malware heavily exploits multi-layer obfuscation, such as back
 The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 
 1. **Lexical Scanning (`src/lexer.py`)**: Tokenizes PowerShell code character-by-character, resolving backtick escape sequences, string literals, and variable identifiers.
-2. **Recursive Descent Parsing (`src/parser.py`)**: Converts token streams into structured AST hierarchies (`ScriptBlockNode`, `PipelineNode`, `FormatOpNode`, `CommandNode`).
+2. **Recursive Descent Parsing (`src/parser.py`)**: Converts token streams into structured AST hierarchies (`ScriptBlockNode`, `PipelineNode`, `FormatOpNode`, `CommandNode`, `IndexAccessNode`, `UnaryOpNode`).
 3. **AST Normalization &amp; Constant Folding (`src/normalizer.py`)**: Inlines string formats (`-f`), collapses string concatenations, strips parentheses artifacts, and serializes clean syntax.
-4. **SecureString Decryption &amp; AST Reduction (`src/secure_string_reducer.py`)**: Statically resolves AES encryption keys, decrypts PowerShell `76492d11...` envelopes, unwraps Marshal BSTR and credential password access, and scrubs sensitive memory buffers.
-5. **Fixed-Point Convergence (`src/deobfuscator_engine.py`)**: Iterates reduction passes until the code reaches a stable, non-mutating fixed point.
+4. **Type Accelerator &amp; Casting Resolver (`src/type_casting_resolver.py`)**: Evaluates type accelerators (`[type]`, `[char[]]`, `[byte[]]`, `[int]`), array index shuffling, reverse slices (`'olleh'[-1..-5] -join ''`), join operators (`-join`), and static .NET conversion methods.
+5. **SecureString Decryption &amp; AST Reduction (`src/secure_string_reducer.py`)**: Statically resolves AES encryption keys, decrypts PowerShell `76492d11...` envelopes, unwraps Marshal BSTR and credential password access, and scrubs sensitive memory buffers.
+6. **Fixed-Point Convergence (`src/deobfuscator_engine.py`)**: Iterates reduction passes until the code reaches a stable, non-mutating fixed point.
 
 ---
 
@@ -58,6 +59,10 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | **Backtick Evasion Stripping** | `In`voke-Exp`ression 'Get-Process'` | `Invoke-Expression 'Get-Process'` |
 | **Format Operator (`-f`) Folding** | `'{1}{0}' -f 'World', 'Hello '` | `'Hello World'` |
 | **String Concatenation Reduction** | `'Down' + 'load' + 'String'` | `'DownloadString'` |
+| **Type Accelerator Unfolding** | `[string][char[]](73, 69, 88)` | `'IEX'` |
+| **Array Slicing &amp; Reversal** | `('olleh'[-1..-5] -join '')` | `'hello'` |
+| **Index Shuffling Reduction** | `[char[]](88, 69, 73)[2, 1, 0] -join ''` | `'IEX'` |
+| **Encoding Decryption Folding** | `[System.Text.Encoding]::ASCII.GetString([byte[]](73, 69, 88))` | `'IEX'` |
 | **SecureString Decryption** | `ConvertTo-SecureString $enc -Key (1..16)` | `'Decrypted String Literal'` |
 | **Marshal &amp; Credential Unboxing** | `[Marshal]::PtrToStringAuto([Marshal]::SecureStringToBSTR($sec))` | `'Decrypted String Literal'` |
 | **Nested Composite Resolution** | `('{1}{0}' -f ('l'+'d'), ('Wor'+''))` | `'World'` |
@@ -75,12 +80,14 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | `src/ast_nodes.py` | Abstract Syntax Tree node hierarchy definitions |
 | `src/parser.py` | Recursive descent syntax tree parser |
 | `src/normalizer.py` | AST constant folding, `-f` inlining, and clean source code serializer |
+| `src/type_accelerators.py` | PowerShell type accelerator dictionary, normalization &amp; .NET reflection metadata |
+| `src/type_casting_resolver.py` | Evaluator for type casts, array index shuffling, reverse slices, and join operations |
 | `src/secure_string_crypto.py` | SecureString envelope parsing, AES-CBC decryption, and buffer zeroization |
 | `src/static_key_extractor.py` | Static AES key extractor from ranges, array literals, byte casts, and variables |
 | `src/secure_string_reducer.py` | AST reducer for ConvertTo-SecureString, Marshal BSTR, and credential objects |
 | `src/deobfuscator_engine.py` | Multi-pass fixed-point convergence engine |
 | `src/cli.py` | Command-line interface with AST and token inspection flags |
-| `tests/` | Comprehensive unit test suite covering lexer, parser, normalizer, crypto, and engine |
+| `tests/` | Comprehensive unit test suite covering lexer, parser, normalizer, crypto, type casting, and engine |
 | `ROADMAP.md` | Public development milestones and engineering roadmap |
 | `SECURITY.md` | Vulnerability disclosure policy and reporting process |
 
@@ -95,46 +102,10 @@ Run the full automated test suite:
 python -m unittest discover tests -v
 ```
 
-All 34 unit tests execute with zero failures:
+All 58 unit tests execute with zero failures:
 
 ```text
-test_token_creation (test_tokens.TestTokens) ... ok
-test_token_repr (test_tokens.TestTokens) ... ok
-test_backtick_in_identifier (test_lexer.TestPowerShellLexer) ... ok
-test_comments_stripping (test_lexer.TestPowerShellLexer) ... ok
-test_double_quoted_string_with_backtick (test_lexer.TestPowerShellLexer) ... ok
-test_format_operator (test_lexer.TestPowerShellLexer) ... ok
-test_numbers (test_lexer.TestPowerShellLexer) ... ok
-test_single_quoted_string (test_lexer.TestPowerShellLexer) ... ok
-test_variables (test_lexer.TestPowerShellLexer) ... ok
-test_parse_assignment (test_parser.TestPowerShellParser) ... ok
-test_parse_binary_concatenation (test_parser.TestPowerShellParser) ... ok
-test_parse_format_op (test_parser.TestPowerShellParser) ... ok
-test_parse_pipeline (test_parser.TestPowerShellParser) ... ok
-test_fold_format_operator (test_normalizer.TestPowerShellNormalizer) ... ok
-test_fold_string_concatenation (test_normalizer.TestPowerShellNormalizer) ... ok
-test_to_source_serialization (test_normalizer.TestPowerShellNormalizer) ... ok
-test_backtick_obfuscation_removal (test_deobfuscator.TestPowerShellDeobfuscator) ... ok
-test_base64_encoded_command_unwrapping (test_deobfuscator.TestPowerShellDeobfuscator) ... ok
-test_nested_format_and_concat (test_deobfuscator.TestPowerShellDeobfuscator) ... ok
-test_authentic_powershell_v2_sample_decryption (test_secure_string.TestSecureStringCrypto) ... ok
-test_error_handling_malformed_secure_string (test_secure_string.TestSecureStringCrypto) ... ok
-test_round_trip_encryption_and_decryption (test_secure_string.TestSecureStringCrypto) ... ok
-test_zeroize_buffer_memory_scrubbing (test_secure_string.TestSecureStringCrypto) ... ok
-test_extract_key_from_array_literal (test_secure_string.TestStaticKeyExtractor) ... ok
-test_extract_key_from_range_node (test_secure_string.TestStaticKeyExtractor) ... ok
-test_extract_key_from_type_cast (test_secure_string.TestStaticKeyExtractor) ... ok
-test_extract_key_from_utf8_encoding (test_secure_string.TestStaticKeyExtractor) ... ok
-test_extract_key_from_variable_table (test_secure_string.TestStaticKeyExtractor) ... ok
-test_multi_pass_deobfuscation_with_encrypted_string (test_secure_string.TestSecureStringReducer) ... ok
-test_reduce_convert_to_secure_string_piped_plain_text (test_secure_string.TestSecureStringReducer) ... ok
-test_reduce_convert_to_secure_string_plain_text (test_secure_string.TestSecureStringReducer) ... ok
-test_reduce_marshal_unboxing (test_secure_string.TestSecureStringReducer) ... ok
-test_reduce_network_credential_unboxing (test_secure_string.TestSecureStringReducer) ... ok
-test_reduce_new_object_credential_unboxing (test_secure_string.TestSecureStringReducer) ... ok
-
-----------------------------------------------------------------------
-Ran 34 tests in 0.032s
+Ran 58 tests in 0.020s
 
 OK
 ```

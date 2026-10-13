@@ -5,6 +5,18 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-10-13
+
+### Added
+- Type Accelerator registry (`src/type_accelerators.py`) mapping PowerShell shorthand type aliases (`char`, `byte[]`, `int`, `string`, `convert`, `type`, `regex`) to full .NET type definitions with case-insensitive normalization.
+- Type casting mangling resolver (`src/type_casting_resolver.py`) evaluating `[char]`, `[char[]]`, `[byte]`, `[byte[]]`, `[int]`, and `[string]` casts to canonical literals.
+- Array indexing, slice shuffling, and reverse range evaluation (`'olleh'[-1..-5] -join ''`, `'olleh'[4..0]`, `[char[]](88,69,73)[2,1,0]`).
+- PowerShell `-join` operator AST normalization supporting both unary (`-join expr`) and binary (`expr -join delimiter`) joining.
+- Static member method folding for `[System.Convert]` (`ToInt32`, `ToChar`, `FromBase64String`), `[System.String]` (`Join`, `Concat`), and `[System.Text.Encoding]` (`ASCII.GetString`, `UTF8.GetString`, `Unicode.GetString`).
+- .NET type reflection unwrapping for `[type]"System.String"` and metadata access (`.Name`, `.FullName`).
+- New AST node primitives `IndexAccessNode` and `UnaryOpNode` integrated into recursive descent parser and code serializer.
+- Comprehensive unit and integration test suite (`tests/test_type_casting.py`) expanding total test coverage to 58 tests passing with zero regressions.
+
 ## [0.2.0] - 2026-10-13
 
 ### Added

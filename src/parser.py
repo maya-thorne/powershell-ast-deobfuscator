@@ -13,6 +13,7 @@ from .ast_nodes import (
     CommandNode,
     FormatOpNode,
     IdentifierNode,
+    IndexAccessNode,
     MemberAccessNode,
     MethodCallNode,
     NumberLiteralNode,
@@ -23,6 +24,7 @@ from .ast_nodes import (
     StaticMemberAccessNode,
     StringLiteralNode,
     TypeCastNode,
+    UnaryOpNode,
     VariableNode,
 )
 from .tokens import Token, TokenType
@@ -126,9 +128,9 @@ class PowerShellParser:
         return expr
 
     def parse_expression(self) -> ASTNode:
-        return self.parse_format_expression()
+        return self.parse_format_or_join_expression()
 
-    def parse_format_expression(self) -> ASTNode:
+    def parse_format_or_join_expression(self) -> ASTNode:
         left = self.parse_range_expression()
 
         # Check for '-f' operator: left -f arg0, arg1, ...
@@ -137,6 +139,11 @@ class PowerShellParser:
             while self.match(TokenType.COMMA):
                 args.append(self.parse_range_expression())
             return FormatOpNode(format_string=left, arguments=args)
+
+        # Check for binary '-join' operator: left -join right
+        if self.match(TokenType.OP_JOIN):
+            right = self.parse_range_expression()
+            return BinaryOpNode(left=left, operator="-join", right=right)
 
         return left
 
@@ -150,14 +157,20 @@ class PowerShellParser:
         return left
 
     def parse_binary_expression(self) -> ASTNode:
-        left = self.parse_postfix_expression()
+        left = self.parse_unary_expression()
 
-        while self.current().type == TokenType.OP_PLUS:
+        while self.current().type in (TokenType.OP_PLUS, TokenType.OP_JOIN):
             op_tok = self.advance()
-            right = self.parse_postfix_expression()
+            right = self.parse_unary_expression()
             left = BinaryOpNode(left=left, operator=op_tok.value, right=right)
 
         return left
+
+    def parse_unary_expression(self) -> ASTNode:
+        if self.match(TokenType.OP_JOIN):
+            operand = self.parse_unary_expression()
+            return UnaryOpNode(operator="-join", operand=operand)
+        return self.parse_postfix_expression()
 
     def parse_postfix_expression(self) -> ASTNode:
         node = self.parse_primary()
@@ -198,6 +211,21 @@ class PowerShellParser:
                         type_name = getattr(node, "name", str(node))
                         node = StaticMemberAccessNode(type_name=type_name, member=member_name, arguments=None)
                     continue
+
+            # Index access: node[idx] or node[i0, i1, ...] or node[start..end]
+            if self.match(TokenType.LBRACKET):
+                idx = self.parse_format_or_join_expression()
+                if self.match(TokenType.COMMA):
+                    elements = [idx, self.parse_format_or_join_expression()]
+                    while self.match(TokenType.COMMA):
+                        elements.append(self.parse_format_or_join_expression())
+                    self.expect(TokenType.RBRACKET)
+                    idx_node = ArrayLiteralNode(elements=elements)
+                else:
+                    self.expect(TokenType.RBRACKET)
+                    idx_node = idx
+                node = IndexAccessNode(target=node, index=idx_node)
+                continue
 
             break
 
@@ -253,8 +281,16 @@ class PowerShellParser:
             if self.current().type == TokenType.OP_COLON_COLON:
                 return IdentifierNode(name=type_name)
 
-            # If followed by an expression, it's a type cast: [byte[]](1..16)
-            if self.current().type in (TokenType.LPAREN, TokenType.VARIABLE, TokenType.AT, TokenType.NUMBER_LITERAL, TokenType.STRING_LITERAL):
+            # If followed by an expression, it's a type cast: [byte[]](1..16), [char]65, [string][char[]](...)
+            if self.current().type in (
+                TokenType.LPAREN,
+                TokenType.VARIABLE,
+                TokenType.AT,
+                TokenType.NUMBER_LITERAL,
+                TokenType.STRING_LITERAL,
+                TokenType.LBRACKET,
+                TokenType.IDENTIFIER,
+            ):
                 target_expr = self.parse_postfix_expression()
                 return TypeCastNode(type_name=type_name, expression=target_expr)
 

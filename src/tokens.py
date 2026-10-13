@@ -18,6 +18,7 @@ class TokenType(Enum):
 
     # Operators
     OP_FORMAT = auto()            # -f (format operator)
+    OP_JOIN = auto()              # -join (join operator)
     OP_PLUS = auto()              # + (concatenation / addition)
     OP_PIPE = auto()              # | (pipeline)
     OP_ASSIGN = auto()            # =

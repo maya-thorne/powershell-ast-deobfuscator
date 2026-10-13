@@ -14,6 +14,7 @@ from .ast_nodes import (
     CommandNode,
     FormatOpNode,
     IdentifierNode,
+    IndexAccessNode,
     MemberAccessNode,
     MethodCallNode,
     NumberLiteralNode,
@@ -24,28 +25,35 @@ from .ast_nodes import (
     StaticMemberAccessNode,
     StringLiteralNode,
     TypeCastNode,
+    UnaryOpNode,
     VariableNode,
 )
 from .secure_string_reducer import PowerShellSecureStringReducer
+from .type_casting_resolver import PowerShellTypeCastingResolver
 
 
 class PowerShellNormalizer:
     """
     Traverses and normalizes PowerShell AST nodes.
     Folds string concatenations, formats '-f' templates, resolves SecureString
-    unboxing patterns, and strips backtick evasion artifacts.
+    unboxing patterns, type accelerators, char/byte casts, and strips backtick evasion artifacts.
     """
 
     def __init__(self, symbols: Optional[Dict[str, Any]] = None):
         self.symbols = symbols if symbols is not None else {}
         self.sec_reducer = PowerShellSecureStringReducer(symbols=self.symbols)
+        self.type_resolver = PowerShellTypeCastingResolver(symbols=self.symbols)
 
     def normalize(self, node: ASTNode) -> ASTNode:
         # Pass 1: Reduce SecureString operations
         node = self.sec_reducer.reduce(node)
-        # Pass 2: Canonical AST normalizations (folding, backticks)
+        # Pass 2: Resolve type accelerators, char/byte casts & array shuffling
+        node = self.type_resolver.resolve(node)
+        # Pass 3: Canonical AST normalizations (folding, backticks)
         node = self.visit(node)
-        # Pass 3: Secondary reduction pass after constant folding
+        # Pass 4: Secondary type casting resolution after constant folding
+        node = self.type_resolver.resolve(node)
+        # Pass 5: Secondary SecureString reduction pass
         node = self.sec_reducer.reduce(node)
         return node
 
@@ -83,6 +91,10 @@ class PowerShellNormalizer:
             norm_target = self.visit(node.target)
             norm_args = [self.visit(a) for a in node.arguments]
             return MethodCallNode(target=norm_target, method_name=node.method_name, arguments=norm_args)
+        elif isinstance(node, UnaryOpNode):
+            return UnaryOpNode(operator=node.operator, operand=self.visit(node.operand))
+        elif isinstance(node, IndexAccessNode):
+            return IndexAccessNode(target=self.visit(node.target), index=self.visit(node.index))
         return node
 
     def visit_script_block(self, node: ScriptBlockNode) -> ScriptBlockNode:
@@ -239,6 +251,16 @@ class PowerShellNormalizer:
             target_str = self.to_source(node.target)
             args_str = ", ".join(self.to_source(a) for a in node.arguments)
             return f"{target_str}.{node.method_name}({args_str})"
+
+        if isinstance(node, UnaryOpNode):
+            return f"{node.operator} {self.to_source(node.operand)}"
+
+        if isinstance(node, IndexAccessNode):
+            target_str = self.to_source(node.target)
+            if isinstance(node.index, ArrayLiteralNode):
+                indices_str = ", ".join(self.to_source(e) for e in node.index.elements)
+                return f"{target_str}[{indices_str}]"
+            return f"{target_str}[{self.to_source(node.index)}]"
 
         return ""
 

@@ -119,3 +119,18 @@ class MethodCallNode(ASTNode):
     method_name: str
     arguments: List[ASTNode] = field(default_factory=list)
 
+
+@dataclass
+class UnaryOpNode(ASTNode):
+    """Represents unary operator invocation: -join expr, etc."""
+    operator: str
+    operand: ASTNode
+
+
+@dataclass
+class IndexAccessNode(ASTNode):
+    """Represents array indexing or slicing: target[index] or target[i1, i2] or target[start..end]."""
+    target: ASTNode
+    index: ASTNode
+
+

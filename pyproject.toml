@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "powershell-ast-deobfuscator"
-version = "0.7.0"
+version = "0.8.0"
 description = "Compiler-Grade AST Parser & Pushdown Automaton Deobfuscation Engine for Windows PowerShell Scripts"
 readme = "README.md"
 requires-python = ">=3.8"

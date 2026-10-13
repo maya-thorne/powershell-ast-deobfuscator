@@ -12,12 +12,12 @@ This document tracks shipped capabilities and future engineering milestones for 
 - [x] **Environment Variable & ExecutionContext Inlining** — Constant propagation for Windows environment variables (`$env:COMSPEC`, `$env:PATH`, `$env:SYSTEMROOT`), automatic preference variables (`$PSHOME`, `$ShellId`, `$VerbosePreference`), array slice recovery (`$env:COMSPEC[4,15,25] -join ''` -> `'iex'`), `$ExecutionContext.InvokeCommand` method unwrapping, and call operator (`&`) reduction.
 - [x] **Reflection & Dynamic Member Call Unwrapping** — Static unwrapping of reflection method invocations (`[Type].GetMethod('Name').Invoke(...)` -> `[Type]::Name(...)`), dynamic member expressions (`$obj.('Substring')(...)` -> `$obj.Substring(...)`), property/field reflection (`GetProperty`, `GetField`, `GetValue`, `SetValue`), pure .NET string & math constant evaluation, and scriptblock invoke reduction.
 - [x] **Pipeline & ScriptBlock Control Flow Optimization** — Static evaluation of pipeline stages (`| %`, `| ForEach-Object`, `| Select-Object`, `| Where-Object`, `| Out-String`), ScriptBlock invocation unwrapping (`& { ... }`, `. { ... }`, `{ ... }.Invoke()`), conditional branch reduction (`if ($true)`, `if ($false)`), and piped command simplification (`'calc.exe' | iex` -> `iex 'calc.exe'`).
+- [x] **PowerShell AST Export & ASCII/Mermaid Visualization** — Hierarchical syntax tree rendering in Unicode and ASCII (`src/ast_visualizer.py`), Mermaid flowchart diagram generation (`flowchart TD`), Graphviz DOT graph export, structured JSON hierarchy serialization, AST complexity metrics (`src/ast_exporter.py`), and CLI visualization flags (`--ast`, `--tree`, `--mermaid`, `--dot`, `--json`, `--stats`).
 
 ---
 
 ## Planned Milestones
 
-- [ ] **PowerShell AST Export & ASCII/Mermaid Visualization** — Visual tree rendering CLI for triage and forensic reporting.
 - [ ] **Base64 Encoded Command Unwrapper** — Detection and recursive decoding of `-e`, `-enc`, `-EncodedCommand` flags.
 - [ ] **AST Anti-Evasion & String Re-joining Pass** — Neutralization of mixed-case fragmentation and subexpression splits.
 - [ ] **Automated Deobfuscation Benchmark Runner** — 30-sample corpus evaluation harness with scoring metrics.
@@ -29,3 +29,5 @@ This document tracks shipped capabilities and future engineering milestones for 
 - [ ] **COM Object CLSID & ProgID Inlining Engine** — Static resolution of WScript.Shell, Shell.Application, and ADODB stream obfuscation patterns.
 - [ ] **Clipboard & Keystroke In-Memory Buffer Tracking** — Static pattern tracking and carving for API keystroke capture routines.
 - [ ] **PowerShell Authenticode Signature Bypass Validation** — Static detection and stripping of tampered digital signature evasion blocks.
+- [ ] **PowerShell 7.4+ ForEach-Object -Parallel Pipeline Analyzer** — Static decomposition of parallelized worker scriptblocks and concurrent task pools.
+- [ ] **Constrained Language Mode (CLM) Policy Bypass Analyzer** — Static validation of language mode boundary enforcement and `__PSLockdownPolicy` tampering patterns.

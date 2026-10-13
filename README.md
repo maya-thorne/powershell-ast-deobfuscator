@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.6.0-blue.svg?style=flat-square" alt="Release v0.6.0" /></a>
+  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.7.0-blue.svg?style=flat-square" alt="Release v0.7.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MT--SRL-emerald.svg?style=flat-square" alt="License MT-SRL" /></a>
   <a href="ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-Active-purple.svg?style=flat-square" alt="Roadmap Active" /></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Policy-red.svg?style=flat-square" alt="Security Policy" /></a>
@@ -78,6 +78,7 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | **ScriptBlock Call Inlining** | `& { iex 'calc.exe' }` | `iex 'calc.exe'` |
 | **Condition Branch Reduction** | `if ($true) { iex 'calc.exe' } else { 'decoy' }` | `iex 'calc.exe'` |
 | **Piped Command Simplification** | `'calc.exe' | iex` | `iex 'calc.exe'` |
+| **AST Tree & Diagram Export** | `pwsh-ast script.ps1 --mermaid` | Hierarchical Unicode tree, Mermaid flowchart, DOT, JSON |
 | **Type Accelerator Unfolding** | `[string][char[]](73, 69, 88)` | `'IEX'` |
 | **Array Slicing &amp; Reversal** | `('olleh'[-1..-5] -join '')` | `'hello'` |
 | **Index Shuffling Reduction** | `[char[]](88, 69, 73)[2, 1, 0] -join ''` | `'IEX'` |
@@ -99,6 +100,8 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | `src/ast_nodes.py` | Abstract Syntax Tree node hierarchy definitions |
 | `src/parser.py` | Recursive descent syntax tree parser |
 | `src/normalizer.py` | AST constant folding, `-f` inlining, and clean source code serializer |
+| `src/ast_visualizer.py` | AST visualizer, Unicode and ASCII hierarchical tree renderer |
+| `src/ast_exporter.py` | AST diagram generator, Mermaid, Graphviz DOT, JSON &amp; metrics exporter |
 | `src/type_accelerators.py` | PowerShell type accelerator dictionary, normalization &amp; .NET reflection metadata |
 | `src/type_casting_resolver.py` | Evaluator for type casts, array index shuffling, reverse slices, and join operations |
 | `src/environment_inliner.py` | Windows environment variables, automatic variables &amp; ExecutionContext inlining engine |
@@ -109,8 +112,8 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | `src/static_key_extractor.py` | Static AES key extractor from ranges, array literals, byte casts, and variables |
 | `src/secure_string_reducer.py` | AST reducer for ConvertTo-SecureString, Marshal BSTR, and credential objects |
 | `src/deobfuscator_engine.py` | Multi-pass fixed-point convergence engine |
-| `src/cli.py` | Command-line interface with AST and token inspection flags |
-| `tests/` | Comprehensive unit test suite covering lexer, parser, normalizer, crypto, type casting, environment, reflection, pipelines, control flow, and engine |
+| `src/cli.py` | Command-line interface with AST visualization, export, and token inspection flags |
+| `tests/` | Comprehensive unit test suite covering lexer, parser, visualizer, exporter, normalizer, crypto, and deobfuscation engine |
 | `ROADMAP.md` | Public development milestones and engineering roadmap |
 | `SECURITY.md` | Vulnerability disclosure policy and reporting process |
 
@@ -125,10 +128,10 @@ Run the full automated test suite:
 python -m unittest discover tests -v
 ```
 
-All 126 unit tests execute with zero failures:
+All 149 unit tests execute with zero failures:
 
 ```text
-Ran 126 tests in 0.047s
+Ran 149 tests in 0.105s
 
 OK
 ```
@@ -143,7 +146,7 @@ OK
 Deobfuscate a raw string or file:
 
 ```bash
-# Direct inline string
+# Direct inline string deobfuscation
 python -m src.cli "('{1}{0}' -f 'World', 'Hello ')"
 
 # Script file input with output redirection
@@ -151,22 +154,57 @@ python -m src.cli malicious_sample.ps1 -o cleaned_sample.ps1
 
 # Inspect token stream
 python -m src.cli "Invoke-Expression" --tokens
+```
 
-# Inspect AST tree
+#### AST Visualization &amp; Export
+
+Visualize or export the Abstract Syntax Tree into multiple formats:
+
+```bash
+# Render hierarchical Unicode tree (default --ast)
 python -m src.cli "$x = 'test' + 'ing'" --ast
+
+# Render plain ASCII tree
+python -m src.cli "$x = 'test' + 'ing'" --ascii
+
+# Export as Mermaid flowchart diagram
+python -m src.cli "if ($true) { Get-Process } else { Get-Service }" --mermaid
+
+# Export as Graphviz DOT graph
+python -m src.cli "Get-Process | Out-String" --dot
+
+# Export as structured JSON tree
+python -m src.cli "Get-Process | Out-String" --json -o ast_dump.json
+
+# Extract structural AST metrics & complexity statistics
+python -m src.cli "Get-Process | Out-String" --stats
 ```
 
 ### Python API
 
 ```python
 from src.deobfuscator_engine import PowerShellDeobfuscator
+from src.ast_visualizer import render_ast_tree
+from src.ast_exporter import export_ast_mermaid, export_ast_json, extract_ast_metrics
 
+# 1. Multi-pass deobfuscation
 engine = PowerShellDeobfuscator()
 raw_code = "In`voke-Exp`ression ('{1}{0}' -f 'ing', 'DownloadStr')"
 cleaned_code = engine.deobfuscate(raw_code)
-
 print(cleaned_code)
 # Output: Invoke-Expression 'DownloadString'
+
+# 2. AST Visualization
+tree = render_ast_tree("$x = 'test' + 'ing'")
+print(tree)
+
+# 3. Export to Mermaid diagram
+mermaid_diagram = export_ast_mermaid("if ($true) { Get-Process }")
+print(mermaid_diagram)
+
+# 4. Extract structural metrics
+metrics = extract_ast_metrics("Get-Process | Out-String")
+print(f"Total nodes: {metrics['total_nodes']}, Cyclomatic complexity: {metrics['cyclomatic_complexity']}")
 ```
 
 ---

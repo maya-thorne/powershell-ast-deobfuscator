@@ -5,6 +5,17 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-10-13
+
+### Added
+- Hierarchical AST visualizer (`src/ast_visualizer.py`) rendering PowerShell abstract syntax trees in Unicode (`├──`, `└──`, `│`) and plain ASCII (`|--`, `\--`) formats with edge labels, child indexing, and depth guards.
+- Multi-format AST exporter (`src/ast_exporter.py`) generating Mermaid flowchart diagrams (`flowchart TD`), Graphviz DOT graphs, structured JSON trees, and structural complexity metrics.
+- Semantic Mermaid shape modeling mapping control flow (`IfStatementNode`, `WhileStatementNode`) to decision diamonds, scriptblocks to subroutines, literals/variables to stadiums, operators to rounded nodes, and types/members to trapezoids.
+- Robust Mermaid and Graphviz character escaping sanitizing quotes, angle brackets, brackets, braces, and control characters to prevent syntax rendering errors.
+- Structural AST complexity metrics extraction providing total node counts, maximum tree depth, per-type frequency distributions, statement/pipeline/command counts, and cyclomatic complexity scoring.
+- Command-line interface enhancements (`src/cli.py`) adding `--ast`, `--tree`, `--mermaid`, `--dot`, `--json`, `--ascii`, `--format {tree,ascii,mermaid,json,dot,raw}`, and `--stats` flags with file output redirection (`-o`).
+- Comprehensive unit and integration test suites (`tests/test_ast_visualizer.py` and `tests/test_ast_exporter.py`) expanding total test coverage to 149 tests with 100% pass rate.
+
 ## [0.6.0] - 2026-10-13
 
 ### Added

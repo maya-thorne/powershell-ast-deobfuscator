@@ -37,10 +37,18 @@ from .secure_string_crypto import (
 from .secure_string_reducer import PowerShellSecureStringReducer
 from .static_key_extractor import StaticKeyExtractor
 from .tokens import Token, TokenType
+from .ast_exporter import (
+    ASTExporter,
+    export_ast_dot,
+    export_ast_json,
+    export_ast_mermaid,
+    extract_ast_metrics,
+)
+from .ast_visualizer import ASTVisualizer, render_ast_tree
 from .type_accelerators import TypeAcceleratorRegistry
 from .type_casting_resolver import PowerShellTypeCastingResolver
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 __all__ = [
     "TokenType",
     "Token",
@@ -52,6 +60,13 @@ __all__ = [
     "PowerShellReflectionUnwrapper",
     "PowerShellPipelineOptimizer",
     "PowerShellScriptBlockSimplifier",
+    "ASTVisualizer",
+    "render_ast_tree",
+    "ASTExporter",
+    "export_ast_mermaid",
+    "export_ast_dot",
+    "export_ast_json",
+    "extract_ast_metrics",
     "decrypt_secure_string",
     "encrypt_secure_string",
     "zeroize_buffer",

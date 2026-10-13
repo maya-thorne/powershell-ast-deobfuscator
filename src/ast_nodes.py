@@ -158,3 +158,19 @@ class DynamicStaticMemberAccessNode(ASTNode):
     arguments: Optional[List[ASTNode]] = None  # None if property, list if method call
 
 
+@dataclass
+class IfStatementNode(ASTNode):
+    """Represents PowerShell conditional: if (condition) { then_branch } else { else_branch }."""
+    condition: ASTNode
+    then_branch: ASTNode
+    else_branch: Optional[ASTNode] = None
+
+
+@dataclass
+class WhileStatementNode(ASTNode):
+    """Represents PowerShell loop: while (condition) { body }."""
+    condition: ASTNode
+    body: ASTNode
+
+
+

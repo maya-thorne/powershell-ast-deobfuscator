@@ -5,6 +5,21 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-10-13
+
+### Added
+- Pipeline optimization engine (`src/pipeline_optimizer.py`) evaluating static pipelines, Foreach-Object (`%` / `foreach`), Select-Object (`select`), Where-Object (`?` / `where`), and Out-String.
+- Foreach-Object mapping block static evaluation supporting character conversions (`(105, 101, 120 | % { [char]$_ }) -join ''` -> `'iex'`), bitwise XOR loops (`$_ -bxor 0x33`), arithmetic offsets (`$_ + 5`), string method invocations (`Trim`, `ToUpper`, `Substring`, `Replace`), format strings (`"{0:X2}" -f $_`), and property mappings (`% Length`).
+- Select-Object slice and filter evaluation supporting `-First N`, `-Last N`, `-Skip N`, `-Index N`, `-Unique` deduplication, and `-ExpandProperty Length`.
+- Where-Object static predicate evaluation supporting comparison operators (`-eq`, `-ne`, `-gt`, `-ge`, `-lt`, `-le`), wildcard pattern matching (`-like`, `-notlike`), and truthiness filtering.
+- ScriptBlock and control flow simplification engine (`src/scriptblock_simplifier.py`) inlining call operators (`& { ... }`, `. { ... }`), method invocations (`{ ... }.Invoke()`), and indirect variable tracking (`$sb = { ... }; &$sb`).
+- Conditional branch static folding for `IfStatementNode` (`if ($true)`, `if ($false)`) eliminating unreachable decoy branches and evaluating numeric, string, negation (`-not`, `!`), and comparison truthiness.
+- Dead loop elimination for `WhileStatementNode` (`while ($false)`).
+- AST hierarchy extensions: `IfStatementNode` and `WhileStatementNode` added to `src/ast_nodes.py`, `src/parser.py`, and `src/normalizer.py`.
+- Parser support for bare comma arrays before pipelines (`105, 101, 120 | % ...`), PowerShell binary operators (`-bxor`, `-band`, `-bor`, `-shl`, `-shr`, `-eq`, `-ne`, `-gt`, `-ge`, `-lt`, `-le`, `-like`, `-notlike`), and unary negation (`-not`, `!`).
+- Piped command simplification reducing `'calc.exe' | iex` to canonical `iex 'calc.exe'`.
+- Dedicated unit and integration test suites (`tests/test_pipeline_optimizer.py` and `tests/test_scriptblock_simplifier.py`) expanding total test suite to 126 tests with 100% pass rate.
+
 ## [0.5.0] - 2026-10-13
 
 ### Added

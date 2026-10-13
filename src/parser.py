@@ -86,8 +86,14 @@ class PowerShellParser:
             var_tok = self.advance()
             self.advance()  # Skip '='
             expr = self.parse_pipeline()
+            scope = None
+            name = var_tok.value
+            if ":" in name:
+                parts = name.split(":", 1)
+                scope = parts[0]
+                name = parts[1]
             return AssignmentNode(
-                variable=VariableNode(name=var_tok.value),
+                variable=VariableNode(name=name, scope=scope),
                 expression=expr,
             )
 
@@ -178,7 +184,7 @@ class PowerShellParser:
         while True:
             # Member access: node.Member or node.Method(args)
             if self.match(TokenType.OP_DOT):
-                if self.current().type == TokenType.IDENTIFIER:
+                if self.current().type in (TokenType.IDENTIFIER, TokenType.STRING_LITERAL):
                     member_tok = self.advance()
                     member_name = member_tok.value
                     if self.match(TokenType.LPAREN):
@@ -195,7 +201,7 @@ class PowerShellParser:
 
             # Static member access: [Type]::Member or [Type]::Method(args)
             if self.match(TokenType.OP_COLON_COLON):
-                if self.current().type == TokenType.IDENTIFIER:
+                if self.current().type in (TokenType.IDENTIFIER, TokenType.STRING_LITERAL):
                     member_tok = self.advance()
                     member_name = member_tok.value
                     if self.match(TokenType.LPAREN):

@@ -28,6 +28,7 @@ from .ast_nodes import (
     UnaryOpNode,
     VariableNode,
 )
+from .environment_inliner import PowerShellEnvironmentInliner
 from .secure_string_reducer import PowerShellSecureStringReducer
 from .type_casting_resolver import PowerShellTypeCastingResolver
 
@@ -35,25 +36,31 @@ from .type_casting_resolver import PowerShellTypeCastingResolver
 class PowerShellNormalizer:
     """
     Traverses and normalizes PowerShell AST nodes.
-    Folds string concatenations, formats '-f' templates, resolves SecureString
-    unboxing patterns, type accelerators, char/byte casts, and strips backtick evasion artifacts.
+    Folds string concatenations, formats '-f' templates, inlines environment variables
+    and ExecutionContext properties, resolves SecureString unboxing patterns,
+    type accelerators, char/byte casts, and strips backtick evasion artifacts.
     """
 
-    def __init__(self, symbols: Optional[Dict[str, Any]] = None):
+    def __init__(self, symbols: Optional[Dict[str, Any]] = None, env: Optional[Dict[str, str]] = None):
         self.symbols = symbols if symbols is not None else {}
+        self.env_inliner = PowerShellEnvironmentInliner(symbols=self.symbols, env=env)
         self.sec_reducer = PowerShellSecureStringReducer(symbols=self.symbols)
         self.type_resolver = PowerShellTypeCastingResolver(symbols=self.symbols)
 
     def normalize(self, node: ASTNode) -> ASTNode:
-        # Pass 1: Reduce SecureString operations
+        # Pass 1: Inline environment variables & ExecutionContext methods
+        node = self.env_inliner.inline(node)
+        # Pass 2: Reduce SecureString operations
         node = self.sec_reducer.reduce(node)
-        # Pass 2: Resolve type accelerators, char/byte casts & array shuffling
+        # Pass 3: Resolve type accelerators, char/byte casts & array shuffling
         node = self.type_resolver.resolve(node)
-        # Pass 3: Canonical AST normalizations (folding, backticks)
+        # Pass 4: Canonical AST normalizations (folding, backticks)
         node = self.visit(node)
-        # Pass 4: Secondary type casting resolution after constant folding
+        # Pass 5: Secondary environment & constant propagation pass
+        node = self.env_inliner.inline(node)
+        # Pass 6: Secondary type casting resolution after constant folding
         node = self.type_resolver.resolve(node)
-        # Pass 5: Secondary SecureString reduction pass
+        # Pass 7: Secondary SecureString reduction pass
         node = self.sec_reducer.reduce(node)
         return node
 
@@ -107,9 +114,26 @@ class PowerShellNormalizer:
             return norm_elements[0]
         return PipelineNode(elements=norm_elements)
 
-    def visit_command(self, node: CommandNode) -> CommandNode:
+    def visit_command(self, node: CommandNode) -> ASTNode:
         norm_target = self.visit(node.target)
         norm_args = [self.visit(a) for a in node.arguments]
+
+        if isinstance(norm_target, IdentifierNode) and norm_target.name in ("&", "."):
+            if norm_args:
+                first_arg = norm_args[0]
+                inner_arg = first_arg.expression if isinstance(first_arg, ParenthesizedExpressionNode) else first_arg
+                if isinstance(inner_arg, StringLiteralNode):
+                    cmd_val = inner_arg.value.strip()
+                    if re.match(r"^[A-Za-z0-9_.-]+$", cmd_val):
+                        return CommandNode(
+                            target=IdentifierNode(name=cmd_val),
+                            arguments=norm_args[1:],
+                        )
+                elif isinstance(inner_arg, ScriptBlockNode) and len(norm_args) == 1:
+                    if len(inner_arg.statements) == 1:
+                        return inner_arg.statements[0]
+                    return inner_arg
+
         return CommandNode(target=norm_target, arguments=norm_args)
 
     def visit_parenthesized(self, node: ParenthesizedExpressionNode) -> ASTNode:
@@ -220,6 +244,8 @@ class PowerShellNormalizer:
             return f"{fmt_str} -f {args_str}"
 
         if isinstance(node, AssignmentNode):
+            if node.variable.scope:
+                return f"${node.variable.scope}:{node.variable.name} = {self.to_source(node.expression)}"
             return f"${node.variable.name} = {self.to_source(node.expression)}"
 
         if isinstance(node, ParenthesizedExpressionNode):

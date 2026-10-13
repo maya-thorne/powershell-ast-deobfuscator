@@ -169,7 +169,11 @@ class PowerShellLexer:
             self.advance()
             buf = []
             while self.pos < self.length and self.source[self.pos] != "}":
-                buf.append(self.advance())
+                ch = self.advance()
+                if ch == "`" and self.pos < self.length and self.source[self.pos] != "}":
+                    buf.append(self.advance())
+                else:
+                    buf.append(ch)
             if self.pos < self.length and self.source[self.pos] == "}":
                 self.advance()
             return Token(
@@ -182,6 +186,11 @@ class PowerShellLexer:
         buf = []
         while self.pos < self.length:
             ch = self.source[self.pos]
+            if ch == "`":
+                self.advance()
+                if self.pos < self.length:
+                    buf.append(self.advance())
+                continue
             if ch.isalnum() or ch in ("_", ":", "?"):
                 buf.append(self.advance())
             else:

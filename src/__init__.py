@@ -13,6 +13,7 @@ from .ast_nodes import (
     VariableNode,
 )
 from .deobfuscator_engine import PowerShellDeobfuscator
+from .environment_inliner import PowerShellEnvironmentInliner
 from .lexer import PowerShellLexer
 from .normalizer import PowerShellNormalizer
 from .parser import PowerShellParser
@@ -31,7 +32,7 @@ from .tokens import Token, TokenType
 from .type_accelerators import TypeAcceleratorRegistry
 from .type_casting_resolver import PowerShellTypeCastingResolver
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __all__ = [
     "TokenType",
     "Token",
@@ -39,6 +40,7 @@ __all__ = [
     "PowerShellParser",
     "PowerShellNormalizer",
     "PowerShellDeobfuscator",
+    "PowerShellEnvironmentInliner",
     "decrypt_secure_string",
     "encrypt_secure_string",
     "zeroize_buffer",

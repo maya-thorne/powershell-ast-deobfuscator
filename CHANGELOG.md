@@ -5,6 +5,19 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-10-13
+
+### Added
+- Environment variable and ExecutionContext inlining engine (`src/environment_inliner.py`) providing compiler-grade constant propagation for obfuscated PowerShell scripts.
+- Constant inlining for Windows environment variables (`$env:COMSPEC`, `$env:PATH`, `$env:PATHEXT`, `$env:SYSTEMROOT`, `$env:WINDIR`, `$env:PUBLIC`, `$env:TEMP`, etc.) with support for custom runtime dictionaries and dynamic assignment tracking (`$env:VAR = 'val'`).
+- Inlining for PowerShell automatic and preference variables (`$PSHOME`, `$ShellId`, `$Host`, `$VerbosePreference`, `$ConfirmPreference`, `$ErrorActionPreference`, `$DebugPreference`).
+- Character-level array indexing and slice recovery on environment variables and preferences (`$env:COMSPEC[4,15,25] -join ''` -> `'iex'`).
+- Deep `$ExecutionContext` and `$ExecutionContext.InvokeCommand` static method unwrapping (`InvokeScript`, `NewScriptBlock`, `ExpandString`, `GetCommand`, `GetCmdlet`, `ToString`).
+- ExecutionContext SessionState navigation (`$ExecutionContext.SessionState.LanguageMode` -> `'FullLanguage'`, `$ExecutionContext.SessionState.Path`).
+- Call operator (`&`) and dot-source (`.`) simplification reducing indirect cmdlet calls (`& 'iex' 'script'` -> `iex 'script'`).
+- Interpolated string variable expansion for double-quoted template expressions (`"Path: $env:SYSTEMROOT\system32"` -> `"Path: C:\Windows\system32"`).
+- Comprehensive unit and integration test suite (`tests/test_environment_inliner.py`) expanding total test coverage to 73 tests passing with zero regressions.
+
 ## [0.3.0] - 2026-10-13
 
 ### Added

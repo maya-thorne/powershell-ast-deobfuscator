@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.3.0-blue.svg?style=flat-square" alt="Release v0.3.0" /></a>
+  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.4.0-blue.svg?style=flat-square" alt="Release v0.4.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MT--SRL-emerald.svg?style=flat-square" alt="License MT-SRL" /></a>
   <a href="ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-Active-purple.svg?style=flat-square" alt="Roadmap Active" /></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Policy-red.svg?style=flat-square" alt="Security Policy" /></a>
@@ -44,10 +44,11 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 
 1. **Lexical Scanning (`src/lexer.py`)**: Tokenizes PowerShell code character-by-character, resolving backtick escape sequences, string literals, and variable identifiers.
 2. **Recursive Descent Parsing (`src/parser.py`)**: Converts token streams into structured AST hierarchies (`ScriptBlockNode`, `PipelineNode`, `FormatOpNode`, `CommandNode`, `IndexAccessNode`, `UnaryOpNode`).
-3. **AST Normalization &amp; Constant Folding (`src/normalizer.py`)**: Inlines string formats (`-f`), collapses string concatenations, strips parentheses artifacts, and serializes clean syntax.
-4. **Type Accelerator &amp; Casting Resolver (`src/type_casting_resolver.py`)**: Evaluates type accelerators (`[type]`, `[char[]]`, `[byte[]]`, `[int]`), array index shuffling, reverse slices (`'olleh'[-1..-5] -join ''`), join operators (`-join`), and static .NET conversion methods.
-5. **SecureString Decryption &amp; AST Reduction (`src/secure_string_reducer.py`)**: Statically resolves AES encryption keys, decrypts PowerShell `76492d11...` envelopes, unwraps Marshal BSTR and credential password access, and scrubs sensitive memory buffers.
-6. **Fixed-Point Convergence (`src/deobfuscator_engine.py`)**: Iterates reduction passes until the code reaches a stable, non-mutating fixed point.
+3. **Environment &amp; ExecutionContext Inlining (`src/environment_inliner.py`)**: Inlines Windows environment variables (`$env:COMSPEC`, `$env:PATH`), automatic variables (`$PSHOME`, `$ShellId`), preference strings, and unwraps `$ExecutionContext.InvokeCommand` static methods.
+4. **AST Normalization &amp; Constant Folding (`src/normalizer.py`)**: Inlines string formats (`-f`), collapses string concatenations, strips parentheses artifacts, reduces call operators (`& 'iex' ...`), and serializes clean syntax.
+5. **Type Accelerator &amp; Casting Resolver (`src/type_casting_resolver.py`)**: Evaluates type accelerators (`[type]`, `[char[]]`, `[byte[]]`, `[int]`), array index shuffling, reverse slices (`'olleh'[-1..-5] -join ''`), join operators (`-join`), and static .NET conversion methods.
+6. **SecureString Decryption &amp; AST Reduction (`src/secure_string_reducer.py`)**: Statically resolves AES encryption keys, decrypts PowerShell `76492d11...` envelopes, unwraps Marshal BSTR and credential password access, and scrubs sensitive memory buffers.
+7. **Fixed-Point Convergence (`src/deobfuscator_engine.py`)**: Iterates reduction passes until the code reaches a stable, non-mutating fixed point.
 
 ---
 
@@ -59,6 +60,10 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | **Backtick Evasion Stripping** | `In`voke-Exp`ression 'Get-Process'` | `Invoke-Expression 'Get-Process'` |
 | **Format Operator (`-f`) Folding** | `'{1}{0}' -f 'World', 'Hello '` | `'Hello World'` |
 | **String Concatenation Reduction** | `'Down' + 'load' + 'String'` | `'DownloadString'` |
+| **Environment Variable Inlining** | `$env:COMSPEC[4, 15, 25] -join ''` | `'iex'` |
+| **Call Operator Simplification** | `& ($env:COMSPEC[4, 15, 25] -join '') 'calc.exe'` | `iex 'calc.exe'` |
+| **Preference Variable Inlining** | `$VerbosePreference.ToString()[1, 3] -join ''` | `'ie'` |
+| **ExecutionContext Unwrapping** | `$ExecutionContext.InvokeCommand.InvokeScript('Get-Date')` | `Get-Date` |
 | **Type Accelerator Unfolding** | `[string][char[]](73, 69, 88)` | `'IEX'` |
 | **Array Slicing &amp; Reversal** | `('olleh'[-1..-5] -join '')` | `'hello'` |
 | **Index Shuffling Reduction** | `[char[]](88, 69, 73)[2, 1, 0] -join ''` | `'IEX'` |
@@ -82,12 +87,13 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | `src/normalizer.py` | AST constant folding, `-f` inlining, and clean source code serializer |
 | `src/type_accelerators.py` | PowerShell type accelerator dictionary, normalization &amp; .NET reflection metadata |
 | `src/type_casting_resolver.py` | Evaluator for type casts, array index shuffling, reverse slices, and join operations |
+| `src/environment_inliner.py` | Windows environment variables, automatic variables &amp; ExecutionContext inlining engine |
 | `src/secure_string_crypto.py` | SecureString envelope parsing, AES-CBC decryption, and buffer zeroization |
 | `src/static_key_extractor.py` | Static AES key extractor from ranges, array literals, byte casts, and variables |
 | `src/secure_string_reducer.py` | AST reducer for ConvertTo-SecureString, Marshal BSTR, and credential objects |
 | `src/deobfuscator_engine.py` | Multi-pass fixed-point convergence engine |
 | `src/cli.py` | Command-line interface with AST and token inspection flags |
-| `tests/` | Comprehensive unit test suite covering lexer, parser, normalizer, crypto, type casting, and engine |
+| `tests/` | Comprehensive unit test suite covering lexer, parser, normalizer, crypto, type casting, environment, and engine |
 | `ROADMAP.md` | Public development milestones and engineering roadmap |
 | `SECURITY.md` | Vulnerability disclosure policy and reporting process |
 
@@ -102,10 +108,10 @@ Run the full automated test suite:
 python -m unittest discover tests -v
 ```
 
-All 58 unit tests execute with zero failures:
+All 73 unit tests execute with zero failures:
 
 ```text
-Ran 58 tests in 0.020s
+Ran 73 tests in 0.034s
 
 OK
 ```

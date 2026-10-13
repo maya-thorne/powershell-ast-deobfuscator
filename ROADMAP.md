@@ -11,12 +11,12 @@ This document tracks shipped capabilities and future engineering milestones for 
 - [x] **Type Accelerator & Type Casting Mangling Resolver** — Resolution of shorthand type accelerators (`[type]`, `[char[]]`, `[int]`, `[byte[]]`), array index shuffling, reverse slices, join operators (`-join`), static conversion methods (`[Convert]`, `[Text.Encoding]`), and .NET type reflection unwrapping.
 - [x] **Environment Variable & ExecutionContext Inlining** — Constant propagation for Windows environment variables (`$env:COMSPEC`, `$env:PATH`, `$env:SYSTEMROOT`), automatic preference variables (`$PSHOME`, `$ShellId`, `$VerbosePreference`), array slice recovery (`$env:COMSPEC[4,15,25] -join ''` -> `'iex'`), `$ExecutionContext.InvokeCommand` method unwrapping, and call operator (`&`) reduction.
 - [x] **Reflection & Dynamic Member Call Unwrapping** — Static unwrapping of reflection method invocations (`[Type].GetMethod('Name').Invoke(...)` -> `[Type]::Name(...)`), dynamic member expressions (`$obj.('Substring')(...)` -> `$obj.Substring(...)`), property/field reflection (`GetProperty`, `GetField`, `GetValue`, `SetValue`), pure .NET string & math constant evaluation, and scriptblock invoke reduction.
+- [x] **Pipeline & ScriptBlock Control Flow Optimization** — Static evaluation of pipeline stages (`| %`, `| ForEach-Object`, `| Select-Object`, `| Where-Object`, `| Out-String`), ScriptBlock invocation unwrapping (`& { ... }`, `. { ... }`, `{ ... }.Invoke()`), conditional branch reduction (`if ($true)`, `if ($false)`), and piped command simplification (`'calc.exe' | iex` -> `iex 'calc.exe'`).
 
 ---
 
 ## Planned Milestones
 
-- [ ] **Pipeline & ScriptBlock Control Flow Normalizer** — Simplification of obfuscated pipes (`| %`, `| ForEach-Object`, `| Select-Object`).
 - [ ] **PowerShell AST Export & ASCII/Mermaid Visualization** — Visual tree rendering CLI for triage and forensic reporting.
 - [ ] **Base64 Encoded Command Unwrapper** — Detection and recursive decoding of `-e`, `-enc`, `-EncodedCommand` flags.
 - [ ] **AST Anti-Evasion & String Re-joining Pass** — Neutralization of mixed-case fragmentation and subexpression splits.
@@ -27,3 +27,5 @@ This document tracks shipped capabilities and future engineering milestones for 
 - [ ] **AMSI & ETW Bypass Static Pattern Detection** — Signature detection and automatic deobfuscation of AmsiScanBuffer patch loops.
 - [ ] **Runspace Pool & Multi-Thread Pipeline Decompiler** — Static decomposition of runspace-isolated background jobs.
 - [ ] **COM Object CLSID & ProgID Inlining Engine** — Static resolution of WScript.Shell, Shell.Application, and ADODB stream obfuscation patterns.
+- [ ] **Clipboard & Keystroke In-Memory Buffer Tracking** — Static pattern tracking and carving for API keystroke capture routines.
+- [ ] **PowerShell Authenticode Signature Bypass Validation** — Static detection and stripping of tampered digital signature evasion blocks.

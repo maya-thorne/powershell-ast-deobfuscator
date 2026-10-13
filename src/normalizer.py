@@ -17,6 +17,7 @@ from .ast_nodes import (
     DynamicStaticMemberAccessNode,
     FormatOpNode,
     IdentifierNode,
+    IfStatementNode,
     IndexAccessNode,
     MemberAccessNode,
     MethodCallNode,
@@ -30,9 +31,12 @@ from .ast_nodes import (
     TypeCastNode,
     UnaryOpNode,
     VariableNode,
+    WhileStatementNode,
 )
 from .environment_inliner import PowerShellEnvironmentInliner
+from .pipeline_optimizer import PowerShellPipelineOptimizer
 from .reflection_unwrapper import PowerShellReflectionUnwrapper
+from .scriptblock_simplifier import PowerShellScriptBlockSimplifier
 from .secure_string_reducer import PowerShellSecureStringReducer
 from .type_casting_resolver import PowerShellTypeCastingResolver
 
@@ -42,7 +46,8 @@ class PowerShellNormalizer:
     Traverses and normalizes PowerShell AST nodes.
     Folds string concatenations, formats '-f' templates, inlines environment variables
     and ExecutionContext properties, resolves SecureString unboxing patterns,
-    type accelerators, char/byte casts, reflection unboxing, and strips backtick evasion artifacts.
+    type accelerators, char/byte casts, reflection unboxing, pipeline stages,
+    control flow branches, and strips backtick evasion artifacts.
     """
 
     def __init__(self, symbols: Optional[Dict[str, Any]] = None, env: Optional[Dict[str, str]] = None):
@@ -51,6 +56,8 @@ class PowerShellNormalizer:
         self.sec_reducer = PowerShellSecureStringReducer(symbols=self.symbols)
         self.type_resolver = PowerShellTypeCastingResolver(symbols=self.symbols)
         self.refl_unwrapper = PowerShellReflectionUnwrapper(symbols=self.symbols)
+        self.pipe_optimizer = PowerShellPipelineOptimizer(symbols=self.symbols)
+        self.sb_simplifier = PowerShellScriptBlockSimplifier(symbols=self.symbols)
 
     def normalize(self, node: ASTNode) -> ASTNode:
         # Pass 1: Inline environment variables & ExecutionContext methods
@@ -61,15 +68,18 @@ class PowerShellNormalizer:
         node = self.type_resolver.resolve(node)
         # Pass 4: Reflection & dynamic member unwrapping
         node = self.refl_unwrapper.unwrap(node)
-        # Pass 5: Canonical AST normalizations (folding, backticks)
+        # Pass 5: Pipeline stage optimization (| %, | select, | where)
+        node = self.pipe_optimizer.optimize(node)
+        # Pass 6: ScriptBlock & control flow simplification (& { ... }, if ($true))
+        node = self.sb_simplifier.simplify(node)
+        # Pass 7: Canonical AST normalizations (folding, backticks)
         node = self.visit(node)
-        # Pass 6: Secondary environment & constant propagation pass
-        node = self.env_inliner.inline(node)
-        # Pass 7: Secondary type casting resolution after constant folding
+        # Pass 8: Cascading convergence passes
+        node = self.pipe_optimizer.optimize(node)
         node = self.type_resolver.resolve(node)
-        # Pass 8: Secondary reflection unwrapping pass
+        node = self.sb_simplifier.simplify(node)
+        node = self.env_inliner.inline(node)
         node = self.refl_unwrapper.unwrap(node)
-        # Pass 9: Secondary SecureString reduction pass
         node = self.sec_reducer.reduce(node)
         return node
 
@@ -131,6 +141,14 @@ class PowerShellNormalizer:
             if isinstance(norm_expr, StringLiteralNode):
                 return StaticMemberAccessNode(type_name=clean_type, member=norm_expr.value, arguments=norm_args)
             return DynamicStaticMemberAccessNode(type_name=clean_type, member_expr=norm_expr, arguments=norm_args)
+        elif isinstance(node, IfStatementNode):
+            return IfStatementNode(
+                condition=self.visit(node.condition),
+                then_branch=self.visit(node.then_branch),
+                else_branch=self.visit(node.else_branch) if node.else_branch else None,
+            )
+        elif isinstance(node, WhileStatementNode):
+            return WhileStatementNode(condition=self.visit(node.condition), body=self.visit(node.body))
         return node
 
     def visit_script_block(self, node: ScriptBlockNode) -> ScriptBlockNode:
@@ -196,6 +214,36 @@ class PowerShellNormalizer:
                     value=left.value + right.value,
                     raw=str(left.value + right.value),
                 )
+
+        # Numeric constant folding for arithmetic and bitwise operators
+        if isinstance(left, NumberLiteralNode) and isinstance(right, NumberLiteralNode):
+            try:
+                l_val = int(left.value)
+                r_val = int(right.value)
+                op = node.operator.lower()
+                if op == "-":
+                    res = l_val - r_val
+                    return NumberLiteralNode(value=res, raw=str(res))
+                elif op == "*":
+                    res = l_val * r_val
+                    return NumberLiteralNode(value=res, raw=str(res))
+                elif op == "-bxor":
+                    res = l_val ^ r_val
+                    return NumberLiteralNode(value=res, raw=str(res))
+                elif op == "-band":
+                    res = l_val & r_val
+                    return NumberLiteralNode(value=res, raw=str(res))
+                elif op == "-bor":
+                    res = l_val | r_val
+                    return NumberLiteralNode(value=res, raw=str(res))
+                elif op == "-shl":
+                    res = l_val << r_val
+                    return NumberLiteralNode(value=res, raw=str(res))
+                elif op == "-shr":
+                    res = l_val >> r_val
+                    return NumberLiteralNode(value=res, raw=str(res))
+            except (ValueError, OverflowError):
+                pass
 
         return BinaryOpNode(left=left, operator=node.operator, right=right)
 
@@ -336,6 +384,20 @@ class PowerShellNormalizer:
                 indices_str = ", ".join(self.to_source(e) for e in node.index.elements)
                 return f"{target_str}[{indices_str}]"
             return f"{target_str}[{self.to_source(node.index)}]"
+
+        if isinstance(node, IfStatementNode):
+            cond_str = self.to_source(node.condition)
+            then_str = self.to_source(node.then_branch)
+            res = f"if ({cond_str}) {then_str}"
+            if node.else_branch is not None:
+                else_str = self.to_source(node.else_branch)
+                res += f" else {else_str}"
+            return res
+
+        if isinstance(node, WhileStatementNode):
+            cond_str = self.to_source(node.condition)
+            body_str = self.to_source(node.body)
+            return f"while ({cond_str}) {body_str}"
 
         return ""
 

@@ -16,6 +16,7 @@ from .ast_nodes import (
     DynamicStaticMemberAccessNode,
     FormatOpNode,
     IdentifierNode,
+    IfStatementNode,
     IndexAccessNode,
     MemberAccessNode,
     MethodCallNode,
@@ -29,6 +30,7 @@ from .ast_nodes import (
     TypeCastNode,
     UnaryOpNode,
     VariableNode,
+    WhileStatementNode,
 )
 from .tokens import Token, TokenType
 
@@ -83,6 +85,17 @@ class PowerShellParser:
                 statements.append(stmt)
         return ScriptBlockNode(statements=statements)
 
+    def _has_pipe_ahead(self) -> bool:
+        idx = self.pos
+        while idx < len(self.tokens):
+            t = self.tokens[idx].type
+            if t == TokenType.OP_PIPE:
+                return True
+            if t in (TokenType.SEMICOLON, TokenType.NEWLINE, TokenType.EOF, TokenType.RPAREN, TokenType.RBRACE):
+                return False
+            idx += 1
+        return False
+
     def parse_statement(self) -> Optional[ASTNode]:
         # Check variable assignment: $var = pipeline_or_expr
         if self.current().type == TokenType.VARIABLE and self.peek().type == TokenType.OP_ASSIGN:
@@ -100,13 +113,60 @@ class PowerShellParser:
                 expression=expr,
             )
 
+        # Check if statement: if (cond) { ... } [else { ... }]
+        if self.current().type == TokenType.IDENTIFIER and self.current().value.lower() == "if":
+            self.advance()  # Skip 'if'
+            self.expect(TokenType.LPAREN)
+            cond = self.parse_pipeline()
+            self.expect(TokenType.RPAREN)
+            if self.current().type == TokenType.LBRACE:
+                then_block = self.parse_primary()
+            else:
+                then_stmt = self.parse_statement()
+                then_block = ScriptBlockNode(statements=[then_stmt] if then_stmt else [], is_nested=True)
+            else_block = None
+            if self.current().type == TokenType.IDENTIFIER and self.current().value.lower() == "else":
+                self.advance()  # Skip 'else'
+                if self.current().type == TokenType.LBRACE:
+                    else_block = self.parse_primary()
+                else:
+                    else_stmt = self.parse_statement()
+                    else_block = ScriptBlockNode(statements=[else_stmt] if else_stmt else [], is_nested=True)
+            return IfStatementNode(condition=cond, then_branch=then_block, else_branch=else_block)
+
+        # Check while loop: while (cond) { ... }
+        if self.current().type == TokenType.IDENTIFIER and self.current().value.lower() == "while":
+            self.advance()  # Skip 'while'
+            self.expect(TokenType.LPAREN)
+            cond = self.parse_pipeline()
+            self.expect(TokenType.RPAREN)
+            if self.current().type == TokenType.LBRACE:
+                body = self.parse_primary()
+            else:
+                stmt = self.parse_statement()
+                body = ScriptBlockNode(statements=[stmt] if stmt else [], is_nested=True)
+            return WhileStatementNode(condition=cond, body=body)
+
         # Parse pipeline
         return self.parse_pipeline()
 
     def parse_pipeline(self) -> ASTNode:
-        elements = [self.parse_command_or_expression()]
+        first = self.parse_command_or_expression()
+        if self.current().type == TokenType.COMMA and self._has_pipe_ahead():
+            items = [first]
+            while self.match(TokenType.COMMA):
+                items.append(self.parse_command_or_expression())
+            first = ArrayLiteralNode(elements=items)
+
+        elements = [first]
         while self.match(TokenType.OP_PIPE):
-            elements.append(self.parse_command_or_expression())
+            elem = self.parse_command_or_expression()
+            if self.current().type == TokenType.COMMA and self._has_pipe_ahead():
+                items = [elem]
+                while self.match(TokenType.COMMA):
+                    items.append(self.parse_command_or_expression())
+                elem = ArrayLiteralNode(elements=items)
+            elements.append(elem)
 
         if len(elements) == 1:
             return elements[0]
@@ -169,10 +229,21 @@ class PowerShellParser:
     def parse_binary_expression(self) -> ASTNode:
         left = self.parse_unary_expression()
 
-        while self.current().type in (TokenType.OP_PLUS, TokenType.OP_JOIN):
-            op_tok = self.advance()
-            right = self.parse_unary_expression()
-            left = BinaryOpNode(left=left, operator=op_tok.value, right=right)
+        while True:
+            if self.current().type in (TokenType.OP_PLUS, TokenType.OP_JOIN):
+                op_tok = self.advance()
+                right = self.parse_unary_expression()
+                left = BinaryOpNode(left=left, operator=op_tok.value, right=right)
+            elif self.current().type == TokenType.IDENTIFIER and self.current().value.lower() in (
+                "-bxor", "-band", "-bor", "-shl", "-shr",
+                "-eq", "-ne", "-gt", "-ge", "-lt", "-le",
+                "-like", "-notlike", "-match", "-notmatch",
+            ):
+                op_tok = self.advance()
+                right = self.parse_unary_expression()
+                left = BinaryOpNode(left=left, operator=op_tok.value.lower(), right=right)
+            else:
+                break
 
         return left
 
@@ -180,6 +251,10 @@ class PowerShellParser:
         if self.match(TokenType.OP_JOIN):
             operand = self.parse_unary_expression()
             return UnaryOpNode(operator="-join", operand=operand)
+        if self.current().type == TokenType.IDENTIFIER and self.current().value.lower() in ("-not", "!"):
+            op_tok = self.advance()
+            operand = self.parse_unary_expression()
+            return UnaryOpNode(operator=op_tok.value.lower(), operand=operand)
         return self.parse_postfix_expression()
 
     def parse_postfix_expression(self) -> ASTNode:

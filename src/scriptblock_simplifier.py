@@ -28,6 +28,7 @@ from .ast_nodes import (
     ScriptBlockNode,
     StaticMemberAccessNode,
     StringLiteralNode,
+    SubexpressionNode,
     TypeCastNode,
     UnaryOpNode,
     VariableNode,
@@ -55,6 +56,8 @@ class PowerShellScriptBlockSimplifier:
 
         if isinstance(node, ScriptBlockNode):
             return self.visit_script_block(node)
+        elif isinstance(node, SubexpressionNode):
+            return SubexpressionNode(statements=[self.visit(s) for s in node.statements])
         elif isinstance(node, IfStatementNode):
             return self.visit_if_statement(node)
         elif isinstance(node, WhileStatementNode):

@@ -13,6 +13,7 @@ from .ast_nodes import (
     IndexAccessNode,
     ScriptBlockNode,
     StringLiteralNode,
+    SubexpressionNode,
     UnaryOpNode,
     VariableNode,
     WhileStatementNode,
@@ -36,6 +37,8 @@ from .secure_string_crypto import (
 )
 from .secure_string_reducer import PowerShellSecureStringReducer
 from .static_key_extractor import StaticKeyExtractor
+from .subexpression_unwrapper import PowerShellSubexpressionUnwrapper
+from .casing_normalizer import PowerShellCasingNormalizer
 from .tokens import Token, TokenType
 from .ast_exporter import (
     ASTExporter,
@@ -48,7 +51,7 @@ from .ast_visualizer import ASTVisualizer, render_ast_tree
 from .type_accelerators import TypeAcceleratorRegistry
 from .type_casting_resolver import PowerShellTypeCastingResolver
 
-__version__ = "0.7.0"
+__version__ = "0.9.0"
 __all__ = [
     "TokenType",
     "Token",
@@ -60,6 +63,8 @@ __all__ = [
     "PowerShellReflectionUnwrapper",
     "PowerShellPipelineOptimizer",
     "PowerShellScriptBlockSimplifier",
+    "PowerShellSubexpressionUnwrapper",
+    "PowerShellCasingNormalizer",
     "ASTVisualizer",
     "render_ast_tree",
     "ASTExporter",
@@ -84,6 +89,7 @@ __all__ = [
     "StringLiteralNode",
     "VariableNode",
     "IndexAccessNode",
+    "SubexpressionNode",
     "UnaryOpNode",
     "DynamicMemberAccessNode",
     "DynamicMethodCallNode",
@@ -91,6 +97,7 @@ __all__ = [
     "IfStatementNode",
     "WhileStatementNode",
 ]
+
 
 
 

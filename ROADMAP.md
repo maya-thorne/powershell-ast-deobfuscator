@@ -14,12 +14,12 @@ This document tracks shipped capabilities and future engineering milestones for 
 - [x] **Pipeline & ScriptBlock Control Flow Optimization** — Static evaluation of pipeline stages (`| %`, `| ForEach-Object`, `| Select-Object`, `| Where-Object`, `| Out-String`), ScriptBlock invocation unwrapping (`& { ... }`, `. { ... }`, `{ ... }.Invoke()`), conditional branch reduction (`if ($true)`, `if ($false)`), and piped command simplification (`'calc.exe' | iex` -> `iex 'calc.exe'`).
 - [x] **PowerShell AST Export & ASCII/Mermaid Visualization** — Hierarchical syntax tree rendering in Unicode and ASCII (`src/ast_visualizer.py`), Mermaid flowchart diagram generation (`flowchart TD`), Graphviz DOT graph export, structured JSON hierarchy serialization, AST complexity metrics (`src/ast_exporter.py`), and CLI visualization flags (`--ast`, `--tree`, `--mermaid`, `--dot`, `--json`, `--stats`).
 - [x] **Base64 Encoded Command Recursive Unwrapper** — Recursive extraction and decoding of `-e`, `-enc`, `-EncodedCommand` parameters across CLI strings and AST `CommandNode` structures, multi-encoding auto-detection (UTF-16LE, UTF-8, UTF-16BE, ASCII), Base64 padding auto-repair, loop protection via SHA-256 hash tracking, and Shannon entropy forensic telemetry (`src/encoded_command_unwrapper.py`).
+- [x] **Subexpression Splitting & Casing Randomization Normalizer** — Subexpression (`$(...)`) unboxing and flattening, redundant nested wrapper stripping (`$((('cmd.exe')))`), concatenation folding inside subexpressions, expandable string interpolation, local assignment propagation (`$($x='calc'; $x)`), subexpression indexing (`$('abc')[1]`), canonical casing restoration for 46 approved PowerShell verbs, 150+ cmdlets and aliases, language keywords, .NET type accelerators and classes (`[byte[]]`, `[System.Net.WebClient]`), instance and static method calls, CLI parameters (`-EncodedCommand`), and automatic/environment variables (`$true`, `$false`, `$null`, `$env:COMSPEC`) (`src/subexpression_unwrapper.py`, `src/casing_normalizer.py`).
 
 ---
 
 ## Planned Milestones
 
-- [ ] **AST Anti-Evasion & String Re-joining Pass** — Neutralization of mixed-case fragmentation and subexpression splits.
 - [ ] **Automated Deobfuscation Benchmark Runner** — 30-sample corpus evaluation harness with scoring metrics.
 - [ ] **DownloadString & WebClient API Remote Payload Carving** — Static carving of obfuscated remote endpoint URLs.
 - [ ] **Arithmetic & Bitwise Operator Static Folding** — Constant reduction for XOR, SHL, and SHR loops.

@@ -19,6 +19,7 @@ from .ast_nodes import (
     ScriptBlockNode,
     StaticMemberAccessNode,
     StringLiteralNode,
+    SubexpressionNode,
     VariableNode,
 )
 from .secure_string_crypto import decrypt_secure_string
@@ -42,6 +43,8 @@ class PowerShellSecureStringReducer:
     def visit(self, node: ASTNode) -> ASTNode:
         if isinstance(node, ScriptBlockNode):
             return self.visit_script_block(node)
+        if isinstance(node, SubexpressionNode):
+            return SubexpressionNode(statements=[self.visit(s) for s in node.statements])
         if isinstance(node, PipelineNode):
             return self.visit_pipeline(node)
         if isinstance(node, CommandNode):

@@ -5,6 +5,27 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-10-13
+
+### Added
+- Subexpression unwrapping and flattening subsystem (`src/subexpression_unwrapper.py`) statically reducing obfuscated PowerShell subexpression splits (`$(...)`) and fragmented tokens to canonical AST nodes.
+- Lexical and syntactic support for subexpressions: added `TokenType.DOLLAR_LPAREN` (`$(`) token and `SubexpressionNode(statements)` AST primitive supporting multi-statement execution, trailing semicolons, comma-separated array literals, member access chaining, and indexing.
+- Redundant nested wrapper unboxing stripping arbitrary levels of redundant wrappers (`$((('calc.exe')))` -> `'calc.exe'`) and parenthesized expressions (`$((1 + 2))` -> `3`).
+- In-subexpression concatenation and binary operation folding reducing string concatenation expressions (`$('i') + $('e') + $('x')` -> `'iex'`).
+- Expandable double-quoted string interpolation reduction resolving nested subexpressions inside strings (`"prefix $( 'cmd' ) suffix"` -> `"prefix cmd suffix"`).
+- Local variable assignment propagation within multi-statement subexpressions (`$($x = 'calc.exe'; $x)` -> `'calc.exe'`).
+- Subexpression indexing reduction evaluating direct index accesses (`$('hello')[1]` -> `'e'`).
+- PowerShell casing randomization normalizer (`src/casing_normalizer.py`) neutralizing mixed-case evasion techniques (`iNvOkE-eXpReSsIoN` -> `Invoke-Expression`).
+- Comprehensive cmdlet dictionary covering 150+ cmdlets, aliases (`iex`, `gci`, `cat`, `curl`, `wget`, `rhu`), and 46 approved PowerShell verbs (`Get`, `Set`, `New`, `Invoke`, `Start`, `Stop`, `ConvertTo`, `ConvertFrom`, `Export`, `Import`, etc.) with PascalCase reconstruction for recognized cmdlets and Verb-Noun compounds.
+- Canonical lowercasing for PowerShell language keywords (`if`, `else`, `elseif`, `while`, `for`, `foreach`, `switch`, `try`, `catch`, `finally`, `param`, `return`, `throw`, `trap`, `function`).
+- .NET type accelerator and namespace canonicalization (`[ByTe[]]` -> `[byte[]]`, `[sYsTeM.nEt.wEbClIeNt]` -> `[System.Net.WebClient]`).
+- Instance and static member method name canonicalization (`.SuBsTrInG()` -> `.Substring()`, `::fRoMbAsE64sTrInG()` -> `::FromBase64String()`).
+- CLI parameter and flag canonicalization (`-eNcOdEdCoMmAnD` -> `-EncodedCommand`).
+- Automatic and environment variable canonicalization (`$tRrUe` -> `$true`, `$FaLsE` -> `$false`, `$NuLl` -> `$null`, `$eNv:cOmSpEc` -> `$env:COMSPEC`).
+- Dynamic member and method access unwrapping (`$obj.('sUbStRiNg')()` -> `$obj.Substring()`).
+- Deobfuscator engine and CLI integration with `--normalize-casing` / `--no-normalize-casing` and `--unwrap-subexpr` / `--no-unwrap-subexpr` flags.
+- Comprehensive test suites (`tests/test_subexpression_unwrapper.py` and `tests/test_casing_normalizer.py`) expanding total test coverage to 210 unit tests passing with 100% success rate.
+
 ## [0.8.0] - 2026-10-13
 
 ### Added

@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.8.0-blue.svg?style=flat-square" alt="Release v0.8.0" /></a>
+  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.9.0-blue.svg?style=flat-square" alt="Release v0.9.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MT--SRL-emerald.svg?style=flat-square" alt="License MT-SRL" /></a>
   <a href="ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-Active-purple.svg?style=flat-square" alt="Roadmap Active" /></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Policy-red.svg?style=flat-square" alt="Security Policy" /></a>
@@ -29,7 +29,7 @@
 
 **powershell-ast-deobfuscator** is a compiler-grade Abstract Syntax Tree (AST) parsing and multi-pass deobfuscation engine designed for static reverse engineering, threat hunting, and malware analysis of complex Windows PowerShell scripts.
 
-Modern PowerShell malware heavily exploits multi-layer obfuscation, such as backtick (`` ` ``) token evasion, scattered string concatenation (`+`), format operator (`-f`) template permutations, type accelerator shuffling, reflection unboxing (`.GetMethod().Invoke()`), pipeline encoding loops (`| % { [char]$_ }`), control flow decoy branching, and nested Base64 command flags. This suite models PowerShell syntax directly down to tokens and AST nodes, systematically normalizing obfuscated structures into clean, human-readable source code.
+Modern PowerShell malware heavily exploits multi-layer obfuscation, such as backtick (`` ` ``) token evasion, scattered string concatenation (`+`), format operator (`-f`) template permutations, type accelerator shuffling, reflection unboxing (`.GetMethod().Invoke()`), pipeline encoding loops (`| % { [char]$_ }`), control flow decoy branching, subexpression splits (`$((...))`), case randomization (`iNvOkE-eXpReSsIoN`), and nested Base64 command flags. This suite models PowerShell syntax directly down to tokens and AST nodes, systematically normalizing obfuscated structures into clean, human-readable source code.
 
 ---
 
@@ -43,16 +43,19 @@ Modern PowerShell malware heavily exploits multi-layer obfuscation, such as back
 The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 
 1. **Recursive Base64 Encoded Command Unwrapping (`src/encoded_command_unwrapper.py`)**: Recursively extracts and decodes `-EncodedCommand`, `-enc`, and `-e` CLI parameters across command lines and AST `CommandNode` structures with multi-encoding auto-detection (UTF-16LE, UTF-8, UTF-16BE, ASCII), Base64 padding auto-repair, and loop detection.
-2. **Lexical Scanning (`src/lexer.py`)**: Tokenizes PowerShell code character-by-character, resolving backtick escape sequences, string literals, and variable identifiers.
-3. **Recursive Descent Parsing (`src/parser.py`)**: Converts token streams into structured AST hierarchies (`ScriptBlockNode`, `PipelineNode`, `FormatOpNode`, `CommandNode`, `IndexAccessNode`, `UnaryOpNode`, `DynamicMemberAccessNode`, `DynamicMethodCallNode`, `DynamicStaticMemberAccessNode`, `IfStatementNode`, `WhileStatementNode`).
+2. **Lexical Scanning (`src/lexer.py`)**: Tokenizes PowerShell code character-by-character, resolving backtick escape sequences, subexpression tokens (`$(`), string literals, and variable identifiers.
+3. **Recursive Descent Parsing (`src/parser.py`)**: Converts token streams into structured AST hierarchies (`ScriptBlockNode`, `PipelineNode`, `FormatOpNode`, `CommandNode`, `SubexpressionNode`, `IndexAccessNode`, `UnaryOpNode`, `DynamicMemberAccessNode`, `DynamicMethodCallNode`, `DynamicStaticMemberAccessNode`, `IfStatementNode`, `WhileStatementNode`).
 4. **Environment &amp; ExecutionContext Inlining (`src/environment_inliner.py`)**: Inlines Windows environment variables (`$env:COMSPEC`, `$env:PATH`), automatic variables (`$PSHOME`, `$ShellId`), preference strings, and unwraps `$ExecutionContext.InvokeCommand` static methods.
-5. **Type Accelerator &amp; Casting Resolver (`src/type_casting_resolver.py`)**: Evaluates type accelerators (`[type]`, `[char[]]`, `[byte[]]`, `[int]`), array index shuffling, reverse slices (`'olleh'[-1..-5] -join ''`), join operators (`-join`), and static .NET conversion methods.
-6. **Reflection &amp; Dynamic Member Unwrapping (`src/reflection_unwrapper.py`)**: Statically resolves `.Invoke()`, `::Invoke()`, `GetMethod()`, `GetProperty()`, `GetField()`, dynamic member expressions (`$obj.('Substring')(0, 5)`), and evaluates safe pure .NET methods.
-7. **Pipeline Optimization (`src/pipeline_optimizer.py`)**: Evaluates static pipelines: unfolds Foreach mapping blocks (`| % { [char]$_ }`), filters slices and unique values via `Select-Object`, processes `Where-Object` predicates, and simplifies piped commands (`'calc.exe' | iex` -> `iex 'calc.exe'`).
-8. **ScriptBlock &amp; Control Flow Simplification (`src/scriptblock_simplifier.py`)**: Inlines invocation wrappers (`& { ... }`, `. { ... }`, `{ ... }.Invoke()`), folds trivial conditional branches (`if ($true)`, `if ($false)`), evaluates static comparisons, and eliminates dead code.
-9. **SecureString Decryption &amp; AST Reduction (`src/secure_string_reducer.py`)**: Statically resolves AES encryption keys, decrypts PowerShell `76492d11...` envelopes, unwraps Marshal BSTR and credential password access, and scrubs sensitive memory buffers.
-10. **AST Normalization &amp; Constant Folding (`src/normalizer.py`)**: Inlines string formats (`-f`), collapses string concatenations, strips parentheses artifacts, reduces call operators, and serializes clean syntax.
-11. **Fixed-Point Convergence (`src/deobfuscator_engine.py`)**: Iterates reduction passes until the code reaches a stable, non-mutating fixed point.
+5. **Subexpression Unwrapping &amp; Flattening (`src/subexpression_unwrapper.py`)**: Unboxes redundant subexpression wrappers (`$((('cmd.exe')))`), folds in-subexpression string concatenations, flattens expandable string interpolations, and propagates local assignments.
+6. **Casing Randomization Normalization (`src/casing_normalizer.py`)**: Normalizes randomized cmdlet names, 46 approved verbs, 150+ cmdlets and aliases, language keywords, .NET types/accelerators, member methods, and variables into canonical PascalCase or lowercase syntax.
+7. **Type Accelerator &amp; Casting Resolver (`src/type_casting_resolver.py`)**: Evaluates type accelerators (`[type]`, `[char[]]`, `[byte[]]`, `[int]`), array index shuffling, reverse slices (`'olleh'[-1..-5] -join ''`), join operators (`-join`), and static .NET conversion methods.
+8. **Reflection &amp; Dynamic Member Unwrapping (`src/reflection_unwrapper.py`)**: Statically resolves `.Invoke()`, `::Invoke()`, `GetMethod()`, `GetProperty()`, `GetField()`, dynamic member expressions (`$obj.('Substring')(0, 5)`), and evaluates safe pure .NET methods.
+9. **Pipeline Optimization (`src/pipeline_optimizer.py`)**: Evaluates static pipelines: unfolds Foreach mapping blocks (`| % { [char]$_ }`), filters slices and unique values via `Select-Object`, processes `Where-Object` predicates, and simplifies piped commands (`'calc.exe' | iex` -> `iex 'calc.exe'`).
+10. **ScriptBlock &amp; Control Flow Simplification (`src/scriptblock_simplifier.py`)**: Inlines invocation wrappers (`& { ... }`, `. { ... }`, `{ ... }.Invoke()`), folds trivial conditional branches (`if ($true)`, `if ($false)`), evaluates static comparisons, and eliminates dead code.
+11. **SecureString Decryption &amp; AST Reduction (`src/secure_string_reducer.py`)**: Statically resolves AES encryption keys, decrypts PowerShell `76492d11...` envelopes, unwraps Marshal BSTR and credential password access, and scrubs sensitive memory buffers.
+12. **AST Normalization &amp; Constant Folding (`src/normalizer.py`)**: Inlines string formats (`-f`), collapses string concatenations, strips parentheses artifacts, reduces call operators, and serializes clean syntax.
+13. **Fixed-Point Convergence (`src/deobfuscator_engine.py`)**: Iterates reduction passes until the code reaches a stable, non-mutating fixed point.
+
 
 ---
 
@@ -89,6 +92,10 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | **Nested Composite Resolution** | `('{1}{0}' -f ('l'+'d'), ('Wor'+''))` | `'World'` |
 | **Base64 EncodedCommand Decode** | `powershell.exe -enc VwBy...` | `Write-Host "Success"` |
 | **Nested Base64 Recursive Unwrapping** | `powershell.exe -NoP -enc <b64_nested>` | Innermost decoded and AST-normalized script |
+| **Subexpression Unwrapping** | `$((('c' + 'alc' + '.exe')))` | `'calc.exe'` |
+| **Casing Randomization Normalization** | `iNvOkE-eXpReSsIoN` | `Invoke-Expression` |
+| **Type Casing Restoration** | `[sYsTeM.nEt.wEbClIeNt]` | `[System.Net.WebClient]` |
+| **Expandable String Inlining** | `"prefix $( 'cmd' ) suffix"` | `"prefix cmd suffix"` |
 
 ---
 
@@ -102,6 +109,8 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | `src/ast_nodes.py` | Abstract Syntax Tree node hierarchy definitions |
 | `src/parser.py` | Recursive descent syntax tree parser |
 | `src/normalizer.py` | AST constant folding, `-f` inlining, and clean source code serializer |
+| `src/subexpression_unwrapper.py` | Subexpression $(...) unboxing, redundant nesting elimination &amp; expandable string inliner |
+| `src/casing_normalizer.py` | Canonical cmdlet, verb, keyword, type accelerator, member &amp; variable casing normalizer |
 | `src/ast_visualizer.py` | AST visualizer, Unicode and ASCII hierarchical tree renderer |
 | `src/ast_exporter.py` | AST diagram generator, Mermaid, Graphviz DOT, JSON &amp; metrics exporter |
 | `src/encoded_command_unwrapper.py` | Base64 encoded command recursive unwrapper, multi-encoding detector &amp; entropy telemetry |
@@ -131,10 +140,10 @@ Run the full automated test suite:
 python -m unittest discover tests -v
 ```
 
-All 173 unit tests execute with zero failures:
+All 210 unit tests execute with zero failures:
 
 ```text
-Ran 173 tests in 0.099s
+Ran 210 tests in 0.138s
 
 OK
 ```
@@ -157,6 +166,13 @@ python -m src.cli malicious_sample.ps1 -o cleaned_sample.ps1
 
 # Inspect token stream
 python -m src.cli "Invoke-Expression" --tokens
+
+# Subexpression and casing normalization (active by default)
+python -m src.cli "iNvOkE-eXpReSsIoN `$((('calc.exe')))"
+# Output: Invoke-Expression 'calc.exe'
+
+# Disable specific passes if raw casing or subexpression syntax is required
+python -m src.cli sample.ps1 --no-normalize-casing --no-unwrap-subexpr
 ```
 
 #### AST Visualization &amp; Export

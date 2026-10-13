@@ -28,6 +28,7 @@ from .ast_nodes import (
     ScriptBlockNode,
     StaticMemberAccessNode,
     StringLiteralNode,
+    SubexpressionNode,
     TypeCastNode,
     UnaryOpNode,
     VariableNode,
@@ -81,8 +82,8 @@ class ASTExporter:
         escaped = self._escape_mermaid(label)
         if isinstance(node, (IfStatementNode, WhileStatementNode)):
             return f'{node_id}{{"{escaped}"}}'  # Diamond for control flow
-        if isinstance(node, ScriptBlockNode):
-            return f'{node_id}[["{escaped}"]]'  # Subroutine for scriptblocks
+        if isinstance(node, (ScriptBlockNode, SubexpressionNode)):
+            return f'{node_id}[["{escaped}"]]'  # Subroutine for scriptblocks and subexpressions
         if isinstance(node, (StringLiteralNode, NumberLiteralNode, VariableNode, IdentifierNode)):
             return f'{node_id}(["{escaped}"])'  # Stadium for literals/variables
         if isinstance(node, (BinaryOpNode, UnaryOpNode, FormatOpNode)):
@@ -93,7 +94,7 @@ class ASTExporter:
 
     def _get_dot_style(self, node: ASTNode) -> Tuple[str, str, str]:
         """Returns (shape, fillcolor, color) for Graphviz DOT nodes."""
-        if isinstance(node, ScriptBlockNode):
+        if isinstance(node, (ScriptBlockNode, SubexpressionNode)):
             return "box", "#e0f2fe", "#0284c7"
         if isinstance(node, (IfStatementNode, WhileStatementNode)):
             return "diamond", "#fee2e2", "#ef4444"
@@ -246,7 +247,7 @@ class ASTExporter:
             name = current.__class__.__name__
             type_counts[name] = type_counts.get(name, 0) + 1
 
-            if isinstance(current, ScriptBlockNode):
+            if isinstance(current, (ScriptBlockNode, SubexpressionNode)):
                 statement_count += len(current.statements)
             elif isinstance(current, PipelineNode):
                 pipeline_count += 1

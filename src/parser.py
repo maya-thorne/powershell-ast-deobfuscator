@@ -27,6 +27,7 @@ from .ast_nodes import (
     ScriptBlockNode,
     StaticMemberAccessNode,
     StringLiteralNode,
+    SubexpressionNode,
     TypeCastNode,
     UnaryOpNode,
     VariableNode,
@@ -356,6 +357,29 @@ class PowerShellParser:
             self.expect(TokenType.RPAREN)
             return ParenthesizedExpressionNode(expression=first)
 
+        # Subexpression: $(stmt1; stmt2; ...)
+        if self.match(TokenType.DOLLAR_LPAREN):
+            statements = []
+            while self.current().type not in (TokenType.RPAREN, TokenType.EOF):
+                if self.current().type in (TokenType.NEWLINE, TokenType.SEMICOLON):
+                    self.advance()
+                    continue
+                stmt = self.parse_statement()
+                if stmt:
+                    if self.match(TokenType.COMMA):
+                        elements = [stmt]
+                        next_stmt = self.parse_statement()
+                        if next_stmt:
+                            elements.append(next_stmt)
+                        while self.match(TokenType.COMMA):
+                            next_stmt = self.parse_statement()
+                            if next_stmt:
+                                elements.append(next_stmt)
+                        stmt = ArrayLiteralNode(elements=elements)
+                    statements.append(stmt)
+            self.expect(TokenType.RPAREN)
+            return SubexpressionNode(statements=statements)
+
         # Array subexpression: @(item0, item1, ...)
         if self.match(TokenType.AT):
             if self.match(TokenType.LPAREN):
@@ -407,6 +431,7 @@ class PowerShellParser:
             # If followed by an expression, it's a type cast: [byte[]](1..16), [char]65, [string][char[]](...)
             if self.current().type in (
                 TokenType.LPAREN,
+                TokenType.DOLLAR_LPAREN,
                 TokenType.VARIABLE,
                 TokenType.AT,
                 TokenType.NUMBER_LITERAL,

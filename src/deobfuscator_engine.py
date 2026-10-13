@@ -21,8 +21,15 @@ class PowerShellDeobfuscator:
 
     MAX_ITERATIONS = 10
 
-    def __init__(self, symbols: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        symbols: Optional[Dict[str, Any]] = None,
+        unwrap_subexpr: bool = True,
+        normalize_casing: bool = True,
+    ):
         self.symbols = symbols if symbols is not None else {}
+        self.unwrap_subexpr = unwrap_subexpr
+        self.normalize_casing = normalize_casing
         self.encoded_unwrapper = PowerShellEncodedCommandUnwrapper(symbols=self.symbols)
         self.last_layers: List[EncodedCommandLayer] = []
 
@@ -50,7 +57,11 @@ class PowerShellDeobfuscator:
                 tokens = lexer.tokenize()
                 parser = PowerShellParser(tokens)
                 ast = parser.parse()
-                normalizer = PowerShellNormalizer(symbols=self.symbols)
+                normalizer = PowerShellNormalizer(
+                    symbols=self.symbols,
+                    unwrap_subexpr=self.unwrap_subexpr,
+                    normalize_casing=self.normalize_casing,
+                )
                 norm_ast = normalizer.normalize(ast)
                 current = normalizer.to_source(norm_ast)
             except Exception:

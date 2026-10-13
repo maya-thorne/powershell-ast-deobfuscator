@@ -27,6 +27,7 @@ from .ast_nodes import (
     ScriptBlockNode,
     StaticMemberAccessNode,
     StringLiteralNode,
+    SubexpressionNode,
     TypeCastNode,
     UnaryOpNode,
     VariableNode,
@@ -80,6 +81,10 @@ class ASTVisualizer:
             status = "nested" if node.is_nested else "root"
             count = len(node.statements)
             return f"ScriptBlock ({status}, {count} statement{'s' if count != 1 else ''})"
+
+        if isinstance(node, SubexpressionNode):
+            count = len(node.statements)
+            return f"Subexpression ($({count} statement{'s' if count != 1 else ''}))"
 
         if isinstance(node, PipelineNode):
             count = len(node.elements)
@@ -174,6 +179,10 @@ class ASTVisualizer:
         children: List[Tuple[str, ASTNode]] = []
 
         if isinstance(node, ScriptBlockNode):
+            for i, stmt in enumerate(node.statements):
+                children.append((f"stmt[{i}]", stmt))
+
+        elif isinstance(node, SubexpressionNode):
             for i, stmt in enumerate(node.statements):
                 children.append((f"stmt[{i}]", stmt))
 

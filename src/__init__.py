@@ -6,6 +6,9 @@ Engineered by Maya Thorne.
 from .ast_nodes import (
     ASTNode,
     CommandNode,
+    DynamicMemberAccessNode,
+    DynamicMethodCallNode,
+    DynamicStaticMemberAccessNode,
     IndexAccessNode,
     ScriptBlockNode,
     StringLiteralNode,
@@ -17,6 +20,7 @@ from .environment_inliner import PowerShellEnvironmentInliner
 from .lexer import PowerShellLexer
 from .normalizer import PowerShellNormalizer
 from .parser import PowerShellParser
+from .reflection_unwrapper import PowerShellReflectionUnwrapper
 from .secure_string_crypto import (
     InvalidKeyLengthError,
     InvalidSecureStringFormatError,
@@ -32,7 +36,7 @@ from .tokens import Token, TokenType
 from .type_accelerators import TypeAcceleratorRegistry
 from .type_casting_resolver import PowerShellTypeCastingResolver
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 __all__ = [
     "TokenType",
     "Token",
@@ -41,6 +45,7 @@ __all__ = [
     "PowerShellNormalizer",
     "PowerShellDeobfuscator",
     "PowerShellEnvironmentInliner",
+    "PowerShellReflectionUnwrapper",
     "decrypt_secure_string",
     "encrypt_secure_string",
     "zeroize_buffer",
@@ -59,5 +64,9 @@ __all__ = [
     "VariableNode",
     "IndexAccessNode",
     "UnaryOpNode",
+    "DynamicMemberAccessNode",
+    "DynamicMethodCallNode",
+    "DynamicStaticMemberAccessNode",
 ]
+
 

@@ -11,6 +11,9 @@ from .ast_nodes import (
     AssignmentNode,
     BinaryOpNode,
     CommandNode,
+    DynamicMemberAccessNode,
+    DynamicMethodCallNode,
+    DynamicStaticMemberAccessNode,
     FormatOpNode,
     IdentifierNode,
     IndexAccessNode,
@@ -122,6 +125,7 @@ class PowerShellParser:
                 TokenType.EOF,
                 TokenType.RPAREN,
                 TokenType.RBRACE,
+                TokenType.COMMA,
             ):
                 arg = self.parse_expression()
                 if arg:
@@ -182,7 +186,7 @@ class PowerShellParser:
         node = self.parse_primary()
 
         while True:
-            # Member access: node.Member or node.Method(args)
+            # Member access: node.Member or node.Method(args) or dynamic node.(expr)
             if self.match(TokenType.OP_DOT):
                 if self.current().type in (TokenType.IDENTIFIER, TokenType.STRING_LITERAL):
                     member_tok = self.advance()
@@ -198,9 +202,23 @@ class PowerShellParser:
                     else:
                         node = MemberAccessNode(target=node, member=member_name)
                     continue
+                elif self.current().type == TokenType.LPAREN:
+                    member_expr = self.parse_primary()
+                    if self.match(TokenType.LPAREN):
+                        args = []
+                        if self.current().type != TokenType.RPAREN:
+                            args.append(self.parse_expression())
+                            while self.match(TokenType.COMMA):
+                                args.append(self.parse_expression())
+                        self.expect(TokenType.RPAREN)
+                        node = DynamicMethodCallNode(target=node, method_expr=member_expr, arguments=args)
+                    else:
+                        node = DynamicMemberAccessNode(target=node, member_expr=member_expr)
+                    continue
 
-            # Static member access: [Type]::Member or [Type]::Method(args)
+            # Static member access: [Type]::Member or [Type]::Method(args) or dynamic [Type]::(expr)
             if self.match(TokenType.OP_COLON_COLON):
+                type_name = getattr(node, "name", str(node)).strip("[]")
                 if self.current().type in (TokenType.IDENTIFIER, TokenType.STRING_LITERAL):
                     member_tok = self.advance()
                     member_name = member_tok.value
@@ -211,11 +229,22 @@ class PowerShellParser:
                             while self.match(TokenType.COMMA):
                                 args.append(self.parse_expression())
                         self.expect(TokenType.RPAREN)
-                        type_name = getattr(node, "name", str(node))
                         node = StaticMemberAccessNode(type_name=type_name, member=member_name, arguments=args)
                     else:
-                        type_name = getattr(node, "name", str(node))
                         node = StaticMemberAccessNode(type_name=type_name, member=member_name, arguments=None)
+                    continue
+                elif self.current().type == TokenType.LPAREN:
+                    member_expr = self.parse_primary()
+                    if self.match(TokenType.LPAREN):
+                        args = []
+                        if self.current().type != TokenType.RPAREN:
+                            args.append(self.parse_expression())
+                            while self.match(TokenType.COMMA):
+                                args.append(self.parse_expression())
+                        self.expect(TokenType.RPAREN)
+                        node = DynamicStaticMemberAccessNode(type_name=type_name, member_expr=member_expr, arguments=args)
+                    else:
+                        node = DynamicStaticMemberAccessNode(type_name=type_name, member_expr=member_expr, arguments=None)
                     continue
 
             # Index access: node[idx] or node[i0, i1, ...] or node[start..end]
@@ -264,6 +293,19 @@ class PowerShellParser:
                 return ArrayLiteralNode(elements=elements)
             return IdentifierNode(name="@")
 
+        # ScriptBlock literal: { ... }
+        if self.match(TokenType.LBRACE):
+            statements = []
+            while self.current().type not in (TokenType.RBRACE, TokenType.EOF):
+                if self.current().type in (TokenType.NEWLINE, TokenType.SEMICOLON):
+                    self.advance()
+                    continue
+                stmt = self.parse_statement()
+                if stmt:
+                    statements.append(stmt)
+            self.expect(TokenType.RBRACE)
+            return ScriptBlockNode(statements=statements, is_nested=True)
+
         # Type literal or type cast: [Type] or [byte[]](...)
         if self.match(TokenType.LBRACKET):
             type_tokens = []
@@ -300,7 +342,7 @@ class PowerShellParser:
                 target_expr = self.parse_postfix_expression()
                 return TypeCastNode(type_name=type_name, expression=target_expr)
 
-            return IdentifierNode(name=type_name)
+            return IdentifierNode(name=f"[{type_name}]")
 
         # String literals
         if tok.type == TokenType.STRING_LITERAL:

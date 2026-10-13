@@ -16,6 +16,7 @@ class ASTNode:
 @dataclass
 class ScriptBlockNode(ASTNode):
     statements: List[ASTNode] = field(default_factory=list)
+    is_nested: bool = False
 
 
 @dataclass
@@ -132,5 +133,28 @@ class IndexAccessNode(ASTNode):
     """Represents array indexing or slicing: target[index] or target[i1, i2] or target[start..end]."""
     target: ASTNode
     index: ASTNode
+
+
+@dataclass
+class DynamicMemberAccessNode(ASTNode):
+    """Represents dynamic property/member access: target.(member_expr) (e.g., $obj.('Length'))."""
+    target: ASTNode
+    member_expr: ASTNode
+
+
+@dataclass
+class DynamicMethodCallNode(ASTNode):
+    """Represents dynamic method invocation: target.(method_expr)(args) (e.g., $obj.('Substring')(0, 5))."""
+    target: ASTNode
+    method_expr: ASTNode
+    arguments: List[ASTNode] = field(default_factory=list)
+
+
+@dataclass
+class DynamicStaticMemberAccessNode(ASTNode):
+    """Represents dynamic static member access: [Type]::(expr) or [Type]::(expr)(args)."""
+    type_name: str
+    member_expr: ASTNode
+    arguments: Optional[List[ASTNode]] = None  # None if property, list if method call
 
 

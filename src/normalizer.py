@@ -12,6 +12,9 @@ from .ast_nodes import (
     AssignmentNode,
     BinaryOpNode,
     CommandNode,
+    DynamicMemberAccessNode,
+    DynamicMethodCallNode,
+    DynamicStaticMemberAccessNode,
     FormatOpNode,
     IdentifierNode,
     IndexAccessNode,
@@ -29,6 +32,7 @@ from .ast_nodes import (
     VariableNode,
 )
 from .environment_inliner import PowerShellEnvironmentInliner
+from .reflection_unwrapper import PowerShellReflectionUnwrapper
 from .secure_string_reducer import PowerShellSecureStringReducer
 from .type_casting_resolver import PowerShellTypeCastingResolver
 
@@ -38,7 +42,7 @@ class PowerShellNormalizer:
     Traverses and normalizes PowerShell AST nodes.
     Folds string concatenations, formats '-f' templates, inlines environment variables
     and ExecutionContext properties, resolves SecureString unboxing patterns,
-    type accelerators, char/byte casts, and strips backtick evasion artifacts.
+    type accelerators, char/byte casts, reflection unboxing, and strips backtick evasion artifacts.
     """
 
     def __init__(self, symbols: Optional[Dict[str, Any]] = None, env: Optional[Dict[str, str]] = None):
@@ -46,6 +50,7 @@ class PowerShellNormalizer:
         self.env_inliner = PowerShellEnvironmentInliner(symbols=self.symbols, env=env)
         self.sec_reducer = PowerShellSecureStringReducer(symbols=self.symbols)
         self.type_resolver = PowerShellTypeCastingResolver(symbols=self.symbols)
+        self.refl_unwrapper = PowerShellReflectionUnwrapper(symbols=self.symbols)
 
     def normalize(self, node: ASTNode) -> ASTNode:
         # Pass 1: Inline environment variables & ExecutionContext methods
@@ -54,13 +59,17 @@ class PowerShellNormalizer:
         node = self.sec_reducer.reduce(node)
         # Pass 3: Resolve type accelerators, char/byte casts & array shuffling
         node = self.type_resolver.resolve(node)
-        # Pass 4: Canonical AST normalizations (folding, backticks)
+        # Pass 4: Reflection & dynamic member unwrapping
+        node = self.refl_unwrapper.unwrap(node)
+        # Pass 5: Canonical AST normalizations (folding, backticks)
         node = self.visit(node)
-        # Pass 5: Secondary environment & constant propagation pass
+        # Pass 6: Secondary environment & constant propagation pass
         node = self.env_inliner.inline(node)
-        # Pass 6: Secondary type casting resolution after constant folding
+        # Pass 7: Secondary type casting resolution after constant folding
         node = self.type_resolver.resolve(node)
-        # Pass 7: Secondary SecureString reduction pass
+        # Pass 8: Secondary reflection unwrapping pass
+        node = self.refl_unwrapper.unwrap(node)
+        # Pass 9: Secondary SecureString reduction pass
         node = self.sec_reducer.reduce(node)
         return node
 
@@ -102,6 +111,26 @@ class PowerShellNormalizer:
             return UnaryOpNode(operator=node.operator, operand=self.visit(node.operand))
         elif isinstance(node, IndexAccessNode):
             return IndexAccessNode(target=self.visit(node.target), index=self.visit(node.index))
+        elif isinstance(node, DynamicMemberAccessNode):
+            norm_target = self.visit(node.target)
+            norm_expr = self.visit(node.member_expr)
+            if isinstance(norm_expr, StringLiteralNode):
+                return MemberAccessNode(target=norm_target, member=norm_expr.value)
+            return DynamicMemberAccessNode(target=norm_target, member_expr=norm_expr)
+        elif isinstance(node, DynamicMethodCallNode):
+            norm_target = self.visit(node.target)
+            norm_expr = self.visit(node.method_expr)
+            norm_args = [self.visit(a) for a in node.arguments]
+            if isinstance(norm_expr, StringLiteralNode):
+                return MethodCallNode(target=norm_target, method_name=norm_expr.value, arguments=norm_args)
+            return DynamicMethodCallNode(target=norm_target, method_expr=norm_expr, arguments=norm_args)
+        elif isinstance(node, DynamicStaticMemberAccessNode):
+            norm_expr = self.visit(node.member_expr)
+            norm_args = [self.visit(a) for a in node.arguments] if node.arguments is not None else None
+            clean_type = node.type_name.strip("[]")
+            if isinstance(norm_expr, StringLiteralNode):
+                return StaticMemberAccessNode(type_name=clean_type, member=norm_expr.value, arguments=norm_args)
+            return DynamicStaticMemberAccessNode(type_name=clean_type, member_expr=norm_expr, arguments=norm_args)
         return node
 
     def visit_script_block(self, node: ScriptBlockNode) -> ScriptBlockNode:
@@ -204,6 +233,9 @@ class PowerShellNormalizer:
     def to_source(self, node: ASTNode) -> str:
         """Serializes normalized AST back into canonical PowerShell code string."""
         if isinstance(node, ScriptBlockNode):
+            if node.is_nested:
+                inner = "; ".join(self.to_source(s) for s in node.statements)
+                return f"{{ {inner} }}"
             return "\n".join(self.to_source(s) for s in node.statements)
 
         if isinstance(node, PipelineNode):
@@ -268,15 +300,32 @@ class PowerShellNormalizer:
             return f"{target_str}.{node.member}"
 
         if isinstance(node, StaticMemberAccessNode):
+            clean_type = node.type_name.strip("[]")
             if node.arguments is not None:
                 args_str = ", ".join(self.to_source(a) for a in node.arguments)
-                return f"[{node.type_name}]::{node.member}({args_str})"
-            return f"[{node.type_name}]::{node.member}"
+                return f"[{clean_type}]::{node.member}({args_str})"
+            return f"[{clean_type}]::{node.member}"
 
         if isinstance(node, MethodCallNode):
             target_str = self.to_source(node.target)
             args_str = ", ".join(self.to_source(a) for a in node.arguments)
             return f"{target_str}.{node.method_name}({args_str})"
+
+        if isinstance(node, DynamicMemberAccessNode):
+            target_str = self.to_source(node.target)
+            return f"{target_str}.({self.to_source(node.member_expr)})"
+
+        if isinstance(node, DynamicMethodCallNode):
+            target_str = self.to_source(node.target)
+            args_str = ", ".join(self.to_source(a) for a in node.arguments)
+            return f"{target_str}.({self.to_source(node.method_expr)})({args_str})"
+
+        if isinstance(node, DynamicStaticMemberAccessNode):
+            clean_type = node.type_name.strip("[]")
+            if node.arguments is not None:
+                args_str = ", ".join(self.to_source(a) for a in node.arguments)
+                return f"[{clean_type}]::({self.to_source(node.member_expr)})({args_str})"
+            return f"[{clean_type}]::({self.to_source(node.member_expr)})"
 
         if isinstance(node, UnaryOpNode):
             return f"{node.operator} {self.to_source(node.operand)}"
@@ -289,4 +338,5 @@ class PowerShellNormalizer:
             return f"{target_str}[{self.to_source(node.index)}]"
 
         return ""
+
 

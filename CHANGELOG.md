@@ -5,6 +5,22 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-10-13
+
+### Added
+- Reflection and dynamic member unwrapping engine (`src/reflection_unwrapper.py`) statically reducing obfuscated .NET reflection patterns to canonical PowerShell syntax.
+- Static reflection method invocation unwrapping for `[Type].GetMethod('Name').Invoke($null, @(args))` reducing to `[Type]::Name(args)`.
+- Instance reflection method invocation unwrapping for `$obj.GetType().GetMethod('Name').Invoke($obj, @(args))` reducing to `$obj.Name(args)`.
+- Dynamic member access and method invocation support (`$obj.('Substring')(0, 5)` -> `$obj.Substring(0, 5)`, `[Type]::('Method')(args)` -> `[Type]::Method(args)`) with AST primitives `DynamicMemberAccessNode`, `DynamicMethodCallNode`, and `DynamicStaticMemberAccessNode`.
+- Property and field reflection unwrapping for `GetProperty('Name').GetValue(...)`, `GetField('Name').GetValue(...)`, and `SetValue(...)` reducing to clean property access and assignments (`[Type]::Field = value`).
+- Symbol table variable tracking for multi-step reflection definitions (`$m = [Type].GetMethod('Name'); $m.Invoke(...)`).
+- Static reduction of `[System.Type]::GetType('FullType')` and `[type]'FullType'` to canonical type references (`[FullType]`).
+- ScriptBlock `.Invoke()` reduction unwrapping standalone `{ ... }.Invoke()` expressions into direct statement executions or call operators (`&`).
+- Pure .NET string instance methods constant folding (`Substring`, `ToLower`, `ToUpper`, `Trim`, `TrimStart`, `TrimEnd`, `Replace`, `Split`, `Contains`, `StartsWith`, `EndsWith`, `IndexOf`, `LastIndexOf`, `PadLeft`, `PadRight`, `Insert`, `Remove`, `Length`).
+- Pure .NET static methods constant folding for `[System.String]` (`Concat`, `Join`, `IsNullOrEmpty`, `IsNullOrWhiteSpace`) and `[System.Math]` (`Abs`, `Min`, `Max`).
+- Memory zeroization and safety bounds checks preventing out-of-range index crashes and surrogate corruptions.
+- Comprehensive unit and integration test suite (`tests/test_reflection_unwrapper.py`) expanding total repository test coverage to 93 tests passing with 100% success.
+
 ## [0.4.0] - 2026-10-13
 
 ### Added

@@ -3,10 +3,10 @@ PowerShell Multi-Pass Fixed-Point Deobfuscation Engine.
 Iterates AST normalization passes until code convergence is achieved.
 """
 
-import base64
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
+from .encoded_command_unwrapper import EncodedCommandLayer, PowerShellEncodedCommandUnwrapper
 from .lexer import PowerShellLexer
 from .normalizer import PowerShellNormalizer
 from .parser import PowerShellParser
@@ -15,12 +15,16 @@ from .parser import PowerShellParser
 class PowerShellDeobfuscator:
     """
     Multi-pass deobfuscation engine for obfuscated PowerShell scripts.
+    Executes AST normalization, cryptographic unboxing, reflection unwrapping,
+    pipeline simplification, and recursive Base64 encoded command unraveling.
     """
 
     MAX_ITERATIONS = 10
 
     def __init__(self, symbols: Optional[Dict[str, Any]] = None):
         self.symbols = symbols if symbols is not None else {}
+        self.encoded_unwrapper = PowerShellEncodedCommandUnwrapper(symbols=self.symbols)
+        self.last_layers: List[EncodedCommandLayer] = []
 
     def deobfuscate(self, script: str) -> str:
         """
@@ -28,13 +32,17 @@ class PowerShellDeobfuscator:
         """
         current = script.strip()
         iteration = 0
+        self.last_layers = []
 
         while iteration < self.MAX_ITERATIONS:
             iteration += 1
             prev = current
 
-            # Pass 1: Pre-process base64 encoded command arguments (-enc / -EncodedCommand)
-            current = self._decode_encoded_commands(current)
+            # Pass 1: Recursive base64 encoded command unwrapping (-enc / -EncodedCommand)
+            unwrap_res = self.encoded_unwrapper.unwrap_text(current)
+            if unwrap_res.has_encoded_commands:
+                self.last_layers.extend(unwrap_res.layers)
+                current = unwrap_res.unwrapped_script
 
             # Pass 2: Lexical scanning & AST normalization
             try:
@@ -58,24 +66,8 @@ class PowerShellDeobfuscator:
         return current
 
     def _decode_encoded_commands(self, text: str) -> str:
-        """Detects -EncodedCommand [Base64] and decodes UTF-16LE payload."""
-        pattern = re.compile(
-            r"(?:-e|-enc|-encodedcommand)\s+([A-Za-z0-9+/=]{8,})",
-            re.IGNORECASE,
-        )
-
-        def decode_match(match: re.Match) -> str:
-            b64_str = match.group(1)
-            try:
-                raw_bytes = base64.b64decode(b64_str)
-                decoded = raw_bytes.decode("utf-16le", errors="ignore")
-                if len(decoded) > 0 and all(ord(c) >= 32 or c in "\r\n\t" for c in decoded):
-                    return f"-Command \"{decoded}\""
-            except Exception:
-                pass
-            return match.group(0)
-
-        return pattern.sub(decode_match, text)
+        """Backward-compatible proxy delegating to recursive encoded command unwrapper."""
+        return self.encoded_unwrapper.unwrap_text(text).unwrapped_script
 
     def _merge_consecutive_quotes(self, text: str) -> str:
         """Folds remaining simple adjacent literal joins ('a'+'b')."""

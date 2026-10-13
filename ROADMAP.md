@@ -13,12 +13,12 @@ This document tracks shipped capabilities and future engineering milestones for 
 - [x] **Reflection & Dynamic Member Call Unwrapping** — Static unwrapping of reflection method invocations (`[Type].GetMethod('Name').Invoke(...)` -> `[Type]::Name(...)`), dynamic member expressions (`$obj.('Substring')(...)` -> `$obj.Substring(...)`), property/field reflection (`GetProperty`, `GetField`, `GetValue`, `SetValue`), pure .NET string & math constant evaluation, and scriptblock invoke reduction.
 - [x] **Pipeline & ScriptBlock Control Flow Optimization** — Static evaluation of pipeline stages (`| %`, `| ForEach-Object`, `| Select-Object`, `| Where-Object`, `| Out-String`), ScriptBlock invocation unwrapping (`& { ... }`, `. { ... }`, `{ ... }.Invoke()`), conditional branch reduction (`if ($true)`, `if ($false)`), and piped command simplification (`'calc.exe' | iex` -> `iex 'calc.exe'`).
 - [x] **PowerShell AST Export & ASCII/Mermaid Visualization** — Hierarchical syntax tree rendering in Unicode and ASCII (`src/ast_visualizer.py`), Mermaid flowchart diagram generation (`flowchart TD`), Graphviz DOT graph export, structured JSON hierarchy serialization, AST complexity metrics (`src/ast_exporter.py`), and CLI visualization flags (`--ast`, `--tree`, `--mermaid`, `--dot`, `--json`, `--stats`).
+- [x] **Base64 Encoded Command Recursive Unwrapper** — Recursive extraction and decoding of `-e`, `-enc`, `-EncodedCommand` parameters across CLI strings and AST `CommandNode` structures, multi-encoding auto-detection (UTF-16LE, UTF-8, UTF-16BE, ASCII), Base64 padding auto-repair, loop protection via SHA-256 hash tracking, and Shannon entropy forensic telemetry (`src/encoded_command_unwrapper.py`).
 
 ---
 
 ## Planned Milestones
 
-- [ ] **Base64 Encoded Command Unwrapper** — Detection and recursive decoding of `-e`, `-enc`, `-EncodedCommand` flags.
 - [ ] **AST Anti-Evasion & String Re-joining Pass** — Neutralization of mixed-case fragmentation and subexpression splits.
 - [ ] **Automated Deobfuscation Benchmark Runner** — 30-sample corpus evaluation harness with scoring metrics.
 - [ ] **DownloadString & WebClient API Remote Payload Carving** — Static carving of obfuscated remote endpoint URLs.
@@ -31,3 +31,6 @@ This document tracks shipped capabilities and future engineering milestones for 
 - [ ] **PowerShell Authenticode Signature Bypass Validation** — Static detection and stripping of tampered digital signature evasion blocks.
 - [ ] **PowerShell 7.4+ ForEach-Object -Parallel Pipeline Analyzer** — Static decomposition of parallelized worker scriptblocks and concurrent task pools.
 - [ ] **Constrained Language Mode (CLM) Policy Bypass Analyzer** — Static validation of language mode boundary enforcement and `__PSLockdownPolicy` tampering patterns.
+- [ ] **.NET Assembly Reflection Loader (Assembly.Load) In-Memory PE Parser** — Static carving of byte arrays and in-memory .NET PE header metadata reconstruction.
+- [ ] **Dynamic Obfuscation Transaction Snapshot Rollback Engine** — Conditional execution path branch tracking and variable state convergence analysis.
+- [ ] **PowerShell Virtual Machine AST Intermediate Representation (IR) Normalizer** — SSA-form intermediate representation lowering and dead code elimination.

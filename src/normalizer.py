@@ -33,6 +33,7 @@ from .ast_nodes import (
     VariableNode,
     WhileStatementNode,
 )
+from .encoded_command_unwrapper import PowerShellEncodedCommandUnwrapper
 from .environment_inliner import PowerShellEnvironmentInliner
 from .pipeline_optimizer import PowerShellPipelineOptimizer
 from .reflection_unwrapper import PowerShellReflectionUnwrapper
@@ -47,11 +48,13 @@ class PowerShellNormalizer:
     Folds string concatenations, formats '-f' templates, inlines environment variables
     and ExecutionContext properties, resolves SecureString unboxing patterns,
     type accelerators, char/byte casts, reflection unboxing, pipeline stages,
-    control flow branches, and strips backtick evasion artifacts.
+    control flow branches, unwraps recursive Base64 encoded commands,
+    and strips backtick evasion artifacts.
     """
 
     def __init__(self, symbols: Optional[Dict[str, Any]] = None, env: Optional[Dict[str, str]] = None):
         self.symbols = symbols if symbols is not None else {}
+        self.enc_unwrapper = PowerShellEncodedCommandUnwrapper(symbols=self.symbols)
         self.env_inliner = PowerShellEnvironmentInliner(symbols=self.symbols, env=env)
         self.sec_reducer = PowerShellSecureStringReducer(symbols=self.symbols)
         self.type_resolver = PowerShellTypeCastingResolver(symbols=self.symbols)
@@ -60,6 +63,8 @@ class PowerShellNormalizer:
         self.sb_simplifier = PowerShellScriptBlockSimplifier(symbols=self.symbols)
 
     def normalize(self, node: ASTNode) -> ASTNode:
+        # Pass 0: Unwrap Base64 encoded command nodes (-enc, -EncodedCommand)
+        node = self.enc_unwrapper.unwrap_ast(node)
         # Pass 1: Inline environment variables & ExecutionContext methods
         node = self.env_inliner.inline(node)
         # Pass 2: Reduce SecureString operations
@@ -75,6 +80,7 @@ class PowerShellNormalizer:
         # Pass 7: Canonical AST normalizations (folding, backticks)
         node = self.visit(node)
         # Pass 8: Cascading convergence passes
+        node = self.enc_unwrapper.unwrap_ast(node)
         node = self.pipe_optimizer.optimize(node)
         node = self.type_resolver.resolve(node)
         node = self.sb_simplifier.simplify(node)
@@ -180,8 +186,11 @@ class PowerShellNormalizer:
                     if len(inner_arg.statements) == 1:
                         return inner_arg.statements[0]
                     return inner_arg
-
-        return CommandNode(target=norm_target, arguments=norm_args)
+        cmd_node = CommandNode(target=norm_target, arguments=norm_args)
+        unwrapped = self.enc_unwrapper.unwrap_ast(cmd_node)
+        if unwrapped != cmd_node:
+            return self.visit(unwrapped)
+        return cmd_node
 
     def visit_parenthesized(self, node: ParenthesizedExpressionNode) -> ASTNode:
         norm_inner = self.visit(node.expression)

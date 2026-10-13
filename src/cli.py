@@ -43,6 +43,16 @@ def main() -> None:
     parser.add_argument("--json", action="store_true", help="Export AST as structured JSON")
     parser.add_argument("--ascii", action="store_true", help="Export AST as plain ASCII tree")
     parser.add_argument("--stats", action="store_true", help="Display AST structural metrics and node counts")
+    parser.add_argument(
+        "--layers",
+        action="store_true",
+        help="Dump all recursive Base64 encoded command layers and forensic telemetry (JSON)",
+    )
+    parser.add_argument(
+        "--extract-b64",
+        action="store_true",
+        help="Extract and print innermost Base64 decoded payload script directly",
+    )
 
     args = parser.parse_args()
 
@@ -117,7 +127,47 @@ def main() -> None:
             print(output_text)
         return
 
-    # 3. Default: Full deobfuscation engine
+    # 3. Base64 encoded command forensic layers / payload extraction
+    if args.layers or args.extract_b64:
+        engine = PowerShellDeobfuscator()
+        result = engine.deobfuscate(script_text)
+        layers = engine.last_layers
+        if args.layers:
+            layers_data = [
+                {
+                    "depth": l.depth,
+                    "cli_binary": l.cli_binary,
+                    "flags": l.flags,
+                    "detected_encoding": l.detected_encoding,
+                    "entropy_before": l.entropy_before,
+                    "entropy_after": l.entropy_after,
+                    "b64_payload_preview": l.b64_payload[:40] + ("..." if len(l.b64_payload) > 40 else ""),
+                    "decoded_content": l.decoded_content,
+                }
+                for l in layers
+            ]
+            output_text = json.dumps(
+                {
+                    "total_layers": len(layers),
+                    "layers": layers_data,
+                    "final_script": result,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        else:
+            # --extract-b64: dump decoded content of innermost layer or deobfuscated result
+            output_text = layers[-1].decoded_content if layers else result
+
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as f:
+                f.write(output_text + "\n")
+            print(f"[+] Output saved to: {args.output}")
+        else:
+            print(output_text)
+        return
+
+    # 4. Default: Full deobfuscation engine
     engine = PowerShellDeobfuscator()
     result = engine.deobfuscate(script_text)
 

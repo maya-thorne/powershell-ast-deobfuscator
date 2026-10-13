@@ -5,6 +5,20 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-10-13
+
+### Added
+- Recursive Base64 encoded command unwrapping subsystem (`src/encoded_command_unwrapper.py`) statically extracting and decoding nested `-EncodedCommand`, `-enc`, and `-e` parameters across command strings and AST `CommandNode` structures.
+- Support for all PowerShell parameter aliases and abbreviations (`-e`, `-en`, `-enc`, `-enco`, `-encod`, `-encode`, `-encoded`, `-encodedc`, `-encodedco`, `-encodedcom`, `-encodedcomm`, `-encodedcomma`, `-encodedcomman`, `-encodedcommand`, `/e`, `/enc`, `/encodedcommand`) with case-insensitivity and backtick evasion stripping (`-e`nc`, `-E`N`cOdEdCoMmAnD`).
+- Parser and regex extraction for preceding launcher binaries (`powershell.exe`, `pwsh.exe`, `cmd /c powershell`, `& powershell`, `Start-Process`) and accompanying CLI flags (`-NoProfile`, `-NonInteractive`, `-WindowStyle Hidden`, `-ExecutionPolicy Bypass`, `-Sta`, `-Version 2.0`).
+- Multi-encoding auto-detection with BOM validation: evaluates UTF-16LE (PowerShell standard), UTF-8, UTF-16BE, ASCII, and Latin-1 based on byte frequency heuristics and null-byte distributions.
+- Robust payload normalization repairing missing Base64 padding (`=` and `==`), stripping internal whitespace, tabs, and newlines, removing backtick escapes, handling URL-safe Base64 variants (`-` and `_`), and evaluating parenthesized string concatenations (`('part1' + 'part2')`).
+- Multi-layer recursive unwrapping with cyclic loop protection using SHA-256 hash tracking and configurable recursion depth bounds (`max_depth = 50`).
+- Layered forensic telemetry tracking layer depth, raw command, detected encoding, CLI binary, extracted flags, and Shannon entropy metrics before and after deobfuscation (`EncodedCommandLayer`, `UnwrapResult`).
+- AST-level transformation inlining decoded script blocks directly into syntax trees for cascading multi-pass normalization.
+- Command-line interface enhancements (`src/cli.py`) adding `--layers` (structured JSON telemetry dump) and `--extract-b64` (direct payload extraction).
+- Comprehensive unit and integration test suite (`tests/test_encoded_command_unwrapper.py`) expanding total repository test suite to 173 tests passing with 100% success.
+
 ## [0.7.0] - 2026-10-13
 
 ### Added

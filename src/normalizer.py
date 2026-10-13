@@ -28,17 +28,20 @@ from .ast_nodes import (
     ScriptBlockNode,
     StaticMemberAccessNode,
     StringLiteralNode,
+    SubexpressionNode,
     TypeCastNode,
     UnaryOpNode,
     VariableNode,
     WhileStatementNode,
 )
+from .casing_normalizer import PowerShellCasingNormalizer
 from .encoded_command_unwrapper import PowerShellEncodedCommandUnwrapper
 from .environment_inliner import PowerShellEnvironmentInliner
 from .pipeline_optimizer import PowerShellPipelineOptimizer
 from .reflection_unwrapper import PowerShellReflectionUnwrapper
 from .scriptblock_simplifier import PowerShellScriptBlockSimplifier
 from .secure_string_reducer import PowerShellSecureStringReducer
+from .subexpression_unwrapper import PowerShellSubexpressionUnwrapper
 from .type_casting_resolver import PowerShellTypeCastingResolver
 
 
@@ -52,8 +55,16 @@ class PowerShellNormalizer:
     and strips backtick evasion artifacts.
     """
 
-    def __init__(self, symbols: Optional[Dict[str, Any]] = None, env: Optional[Dict[str, str]] = None):
+    def __init__(
+        self,
+        symbols: Optional[Dict[str, Any]] = None,
+        env: Optional[Dict[str, str]] = None,
+        unwrap_subexpr: bool = True,
+        normalize_casing: bool = True,
+    ):
         self.symbols = symbols if symbols is not None else {}
+        self.unwrap_subexpr = unwrap_subexpr
+        self.normalize_casing = normalize_casing
         self.enc_unwrapper = PowerShellEncodedCommandUnwrapper(symbols=self.symbols)
         self.env_inliner = PowerShellEnvironmentInliner(symbols=self.symbols, env=env)
         self.sec_reducer = PowerShellSecureStringReducer(symbols=self.symbols)
@@ -61,6 +72,8 @@ class PowerShellNormalizer:
         self.refl_unwrapper = PowerShellReflectionUnwrapper(symbols=self.symbols)
         self.pipe_optimizer = PowerShellPipelineOptimizer(symbols=self.symbols)
         self.sb_simplifier = PowerShellScriptBlockSimplifier(symbols=self.symbols)
+        self.subexpr_unwrapper = PowerShellSubexpressionUnwrapper(symbols=self.symbols)
+        self.casing_normalizer = PowerShellCasingNormalizer(symbols=self.symbols)
 
     def normalize(self, node: ASTNode) -> ASTNode:
         # Pass 0: Unwrap Base64 encoded command nodes (-enc, -EncodedCommand)
@@ -77,16 +90,26 @@ class PowerShellNormalizer:
         node = self.pipe_optimizer.optimize(node)
         # Pass 6: ScriptBlock & control flow simplification (& { ... }, if ($true))
         node = self.sb_simplifier.simplify(node)
-        # Pass 7: Canonical AST normalizations (folding, backticks)
+        # Pass 7: Subexpression unwrapping ($(...))
+        if self.unwrap_subexpr:
+            node = self.subexpr_unwrapper.unwrap(node)
+        # Pass 8: Canonical AST normalizations (folding, backticks)
         node = self.visit(node)
-        # Pass 8: Cascading convergence passes
+        # Pass 9: Cascading convergence passes
         node = self.enc_unwrapper.unwrap_ast(node)
+        if self.unwrap_subexpr:
+            node = self.subexpr_unwrapper.unwrap(node)
         node = self.pipe_optimizer.optimize(node)
         node = self.type_resolver.resolve(node)
         node = self.sb_simplifier.simplify(node)
         node = self.env_inliner.inline(node)
         node = self.refl_unwrapper.unwrap(node)
         node = self.sec_reducer.reduce(node)
+        if self.unwrap_subexpr:
+            node = self.subexpr_unwrapper.unwrap(node)
+        # Pass 10: Canonical casing normalization
+        if self.normalize_casing:
+            node = self.casing_normalizer.normalize(node)
         return node
 
     def visit(self, node: ASTNode) -> ASTNode:
@@ -155,6 +178,8 @@ class PowerShellNormalizer:
             )
         elif isinstance(node, WhileStatementNode):
             return WhileStatementNode(condition=self.visit(node.condition), body=self.visit(node.body))
+        elif isinstance(node, SubexpressionNode):
+            return SubexpressionNode(statements=[self.visit(s) for s in node.statements])
         return node
 
     def visit_script_block(self, node: ScriptBlockNode) -> ScriptBlockNode:
@@ -407,6 +432,12 @@ class PowerShellNormalizer:
             cond_str = self.to_source(node.condition)
             body_str = self.to_source(node.body)
             return f"while ({cond_str}) {body_str}"
+
+        if isinstance(node, SubexpressionNode):
+            if len(node.statements) == 1:
+                return f"$({self.to_source(node.statements[0])})"
+            stmts_str = "; ".join(self.to_source(s) for s in node.statements)
+            return f"$({stmts_str})"
 
         return ""
 

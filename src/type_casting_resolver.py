@@ -26,6 +26,7 @@ from .ast_nodes import (
     ScriptBlockNode,
     StaticMemberAccessNode,
     StringLiteralNode,
+    SubexpressionNode,
     TypeCastNode,
     UnaryOpNode,
     VariableNode,
@@ -49,6 +50,8 @@ class PowerShellTypeCastingResolver:
     def visit(self, node: ASTNode) -> ASTNode:
         if isinstance(node, ScriptBlockNode):
             return ScriptBlockNode(statements=[self.visit(s) for s in node.statements])
+        elif isinstance(node, SubexpressionNode):
+            return SubexpressionNode(statements=[self.visit(s) for s in node.statements])
         elif isinstance(node, PipelineNode):
             return self.visit_pipeline(node)
         elif isinstance(node, CommandNode):

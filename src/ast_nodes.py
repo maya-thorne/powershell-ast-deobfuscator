@@ -173,4 +173,14 @@ class WhileStatementNode(ASTNode):
     body: ASTNode
 
 
+@dataclass
+class SubexpressionNode(ASTNode):
+    """Represents PowerShell subexpression: $(statements)."""
+    statements: List[ASTNode] = field(default_factory=list)
+
+    def accept(self, visitor: Any) -> Any:
+        return visitor.visit(self)
+
+
+
 

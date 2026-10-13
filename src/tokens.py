@@ -30,6 +30,7 @@ class TokenType(Enum):
     # Delimiters
     LPAREN = auto()               # (
     RPAREN = auto()               # )
+    DOLLAR_LPAREN = auto()        # $( (subexpression)
     LBRACE = auto()               # {
     RBRACE = auto()               # }
     LBRACKET = auto()             # [ (type cast or array)

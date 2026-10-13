@@ -49,6 +49,30 @@ def main() -> None:
         help="Dump all recursive Base64 encoded command layers and forensic telemetry (JSON)",
     )
     parser.add_argument(
+        "--normalize-casing",
+        action="store_true",
+        default=True,
+        help="Normalize casing of cmdlets, keywords, types, members, and variables (default: True)",
+    )
+    parser.add_argument(
+        "--no-normalize-casing",
+        dest="normalize_casing",
+        action="store_false",
+        help="Disable casing normalization",
+    )
+    parser.add_argument(
+        "--unwrap-subexpr",
+        action="store_true",
+        default=True,
+        help="Unbox redundant subexpressions and expandable strings $(...) (default: True)",
+    )
+    parser.add_argument(
+        "--no-unwrap-subexpr",
+        dest="unwrap_subexpr",
+        action="store_false",
+        help="Disable subexpression unwrapping",
+    )
+    parser.add_argument(
         "--extract-b64",
         action="store_true",
         help="Extract and print innermost Base64 decoded payload script directly",
@@ -129,7 +153,10 @@ def main() -> None:
 
     # 3. Base64 encoded command forensic layers / payload extraction
     if args.layers or args.extract_b64:
-        engine = PowerShellDeobfuscator()
+        engine = PowerShellDeobfuscator(
+            unwrap_subexpr=args.unwrap_subexpr,
+            normalize_casing=args.normalize_casing,
+        )
         result = engine.deobfuscate(script_text)
         layers = engine.last_layers
         if args.layers:
@@ -168,7 +195,10 @@ def main() -> None:
         return
 
     # 4. Default: Full deobfuscation engine
-    engine = PowerShellDeobfuscator()
+    engine = PowerShellDeobfuscator(
+        unwrap_subexpr=args.unwrap_subexpr,
+        normalize_casing=args.normalize_casing,
+    )
     result = engine.deobfuscate(script_text)
 
     if args.output:

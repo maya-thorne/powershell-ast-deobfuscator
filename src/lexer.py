@@ -390,8 +390,13 @@ class PowerShellLexer:
                 tokens.append(self.read_double_quoted_string())
                 continue
 
-            # Variables
+            # Variables or Subexpression
             if ch == "$":
+                if self.peek(1) == "(":
+                    self.advance()
+                    self.advance()
+                    tokens.append(Token(TokenType.DOLLAR_LPAREN, "$(", line, col))
+                    continue
                 tokens.append(self.read_variable())
                 continue
 

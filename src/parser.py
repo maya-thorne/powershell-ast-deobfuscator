@@ -98,21 +98,18 @@ class PowerShellParser:
         return False
 
     def parse_statement(self) -> Optional[ASTNode]:
-        # Check variable assignment: $var = pipeline_or_expr
-        if self.current().type == TokenType.VARIABLE and self.peek().type == TokenType.OP_ASSIGN:
-            var_tok = self.advance()
-            self.advance()  # Skip '='
-            expr = self.parse_pipeline()
-            scope = None
-            name = var_tok.value
-            if ":" in name:
-                parts = name.split(":", 1)
-                scope = parts[0]
-                name = parts[1]
-            return AssignmentNode(
-                variable=VariableNode(name=name, scope=scope),
-                expression=expr,
-            )
+        # Check variable or property/index assignment: $var = expr, $var.Prop = expr, $var[idx] = expr
+        if self.current().type == TokenType.VARIABLE:
+            save_pos = self.pos
+            target = self.parse_expression()
+            if self.current().type == TokenType.OP_ASSIGN:
+                self.advance()  # Skip '='
+                expr = self.parse_pipeline()
+                return AssignmentNode(
+                    variable=target,
+                    expression=expr,
+                )
+            self.pos = save_pos
 
         # Check if statement: if (cond) { ... } [else { ... }]
         if self.current().type == TokenType.IDENTIFIER and self.current().value.lower() == "if":

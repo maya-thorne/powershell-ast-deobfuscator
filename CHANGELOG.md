@@ -5,6 +5,28 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-10-14
+
+### Added
+- DownloadString and WebClient API static tracer and remote payload URL carving engine (`src/webclient_tracer.py`).
+- Compiler-grade AST inspection extracting download method invocations across `System.Net.WebClient` (`DownloadString`, `DownloadFile`, `DownloadData`, `OpenRead`, `OpenWrite`, `UploadString`, `UploadData`, `UploadFile`, and async variants), `System.Net.Http.HttpClient` (`GetStringAsync`, `GetByteArrayAsync`, `GetStreamAsync`, `GetAsync`, `SendAsync`), and `System.Net.WebRequest` (`Create`).
+- Download cmdlet and BSTR transfer static resolution supporting `Invoke-WebRequest` (`iwr`), `Invoke-RestMethod` (`irm`), and `Start-BitsTransfer` with automatic argument mapping for `-Uri`, `-OutFile`, `-UserAgent`, and `-Headers`.
+- Obfuscated IP address auto-decoding:
+  - Decimal DWORD integer IP resolution (e.g. `http://2130706433/` -> `http://127.0.0.1/`).
+  - Single 32-bit hexadecimal integer IP resolution (e.g. `http://0x7f000001/` -> `http://127.0.0.1/`).
+  - Dotted hexadecimal notation resolution (e.g. `http://0xC0.0xA8.0x01.0x01/` -> `http://192.168.1.1/`).
+  - Dotted octal notation resolution (e.g. `http://0177.0.0.1/` -> `http://127.0.0.1/`).
+- Forensic download cradle categorization identifying execution vectors: `iex_download_string`, `file_download_execute`, `in_memory_assembly_load`, `cmdlet_download`, `bits_transfer`, and `raw_string_carve`.
+- Contextual state tracking associating WebClient headers (`$wc.Headers.Add(...)`, `$wc.Headers[...] = ...`) and proxy configurations (`$wc.Proxy = ...`) with downstream download operations.
+- Heuristic fallback URL carver performing ReDoS-safe linear regex scanning over unstructured text, comments, and array literals.
+- Structured `RemotePayloadTarget` forensic telemetry model with JSON serialization.
+- Public utility facade functions: `trace_webclient()`, `carve_all_urls()`, and `extract_download_urls()`.
+- CLI enhancements (`src/cli.py`):
+  - `--carve-urls`: Dumps all carved remote download targets with full metadata as structured JSON.
+  - `--urls`: Dumps deduplicated list of canonical remote payload URLs (one per line).
+- Expanded parser grammar: generalized assignment statement parsing to handle property access (`$wc.Proxy = ...`) and array indexing (`$wc.Headers['User-Agent'] = ...`) as first-class l-values.
+- Comprehensive unit and integration test suite (`tests/test_webclient_tracer.py`) with 22 new tests, expanding test coverage to 259 tests passing with 100% success rate.
+
 ## [0.10.0] - 2026-10-14
 
 ### Added

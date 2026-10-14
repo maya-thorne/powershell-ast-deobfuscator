@@ -16,12 +16,12 @@ This document tracks shipped capabilities and future engineering milestones for 
 - [x] **Base64 Encoded Command Recursive Unwrapper** — Recursive extraction and decoding of `-e`, `-enc`, `-EncodedCommand` parameters across CLI strings and AST `CommandNode` structures, multi-encoding auto-detection (UTF-16LE, UTF-8, UTF-16BE, ASCII), Base64 padding auto-repair, loop protection via SHA-256 hash tracking, and Shannon entropy forensic telemetry (`src/encoded_command_unwrapper.py`).
 - [x] **Subexpression Splitting & Casing Randomization Normalizer** — Subexpression (`$(...)`) unboxing and flattening, redundant nested wrapper stripping (`$((('cmd.exe')))`), concatenation folding inside subexpressions, expandable string interpolation, local assignment propagation (`$($x='calc'; $x)`), subexpression indexing (`$('abc')[1]`), canonical casing restoration for 46 approved PowerShell verbs, 150+ cmdlets and aliases, language keywords, .NET type accelerators and classes (`[byte[]]`, `[System.Net.WebClient]`), instance and static method calls, CLI parameters (`-EncodedCommand`), and automatic/environment variables (`$true`, `$false`, `$null`, `$env:COMSPEC`) (`src/subexpression_unwrapper.py`, `src/casing_normalizer.py`).
 - [x] **Automated Deobfuscation Benchmark Runner & Accuracy Harness** — Curated 30-sample obfuscated PowerShell corpus across 10 evasion categories, multi-dimensional fidelity telemetry (Shannon entropy, artifact reduction, ground-truth indicator recall, AST syntax validity), composite fidelity scoring (0-100%), ASCII/JSON/Markdown report generation, and CLI benchmark execution flags (`--benchmark`, `--benchmark-sample`, `--benchmark-category`, `--benchmark-report`, `--benchmark-format`) (`src/benchmark.py`, `src/benchmark_corpus.py`, `src/benchmark_metrics.py`, `src/benchmark_runner.py`).
+- [x] **DownloadString & WebClient API Remote Payload Carving** — Compiler-grade AST static tracing and heuristic URL carving for WebClient, HttpClient, HttpWebRequest, and download cmdlets (`Invoke-WebRequest`, `iwr`, `Invoke-RestMethod`, `irm`, `Start-BitsTransfer`), resolving obfuscated decimal/DWORD, hexadecimal, octal, and dotted IPs, tracking headers and proxies, detecting download cradles (`iex_download_string`, `file_download_execute`, `in_memory_assembly_load`), and CLI integration (`--carve-urls`, `--urls`) (`src/webclient_tracer.py`).
 
 ---
 
 ## Planned Milestones
 
-- [ ] **DownloadString & WebClient API Remote Payload Carving** — Static carving of obfuscated remote endpoint URLs.
 - [ ] **Arithmetic & Bitwise Operator Static Folding** — Constant reduction for XOR, SHL, and SHR loops.
 - [ ] **Recursive IEX Unwrapper & Execution Tree Flattener** — Multi-layered `iex(iex(...))` peeling.
 - [ ] **AMSI & ETW Bypass Static Pattern Detection** — Signature detection and automatic deobfuscation of AmsiScanBuffer patch loops.
@@ -37,3 +37,6 @@ This document tracks shipped capabilities and future engineering milestones for 
 - [ ] **PowerShell ETW Event Provider (Event 4104) Static De-tampering Engine** — Static reconstruction of patched ETW event provider handles and telemetry unhooking.
 - [ ] **PowerShell Remote Target PSSession & WSMan Payload Unwrapping** — Static decomposition of Enter-PSSession and Invoke-Command serialized CLIXML payloads.
 - [ ] **PowerShell Custom Type Provider & Accelerator Poisoning Analyzer** — Static detection of poisoned type accelerators and hijacked type tables.
+- [ ] **PowerShell .NET AppDomain & AssemblyResolve Dynamic Hook Tracer** — Static decomposition of custom assembly resolution and encrypted resource packers.
+- [ ] **PowerShell AMSI Memory Patching Multi-Pattern Analyzer** — Static detection and signature extraction for AmsiScanBuffer, AmsiInitialize, and AmsiOpenSession memory patching.
+- [ ] **Constrained Language Mode (CLM) Escape Simulator** — Static modeling of execution pathways and policy boundary bypass verification.

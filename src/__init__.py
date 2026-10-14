@@ -48,10 +48,30 @@ from .ast_exporter import (
     extract_ast_metrics,
 )
 from .ast_visualizer import ASTVisualizer, render_ast_tree
+from .benchmark import (
+    CorpusBenchmarkSummary,
+    CorpusSample,
+    SampleBenchmarkResult,
+    calculate_entropy,
+    calculate_fidelity_score,
+    calculate_indicator_recall,
+    calculate_size_reduction,
+    check_ast_validity,
+    detect_artifacts,
+    get_corpus,
+    get_corpus_by_category,
+    get_sample,
+    run_benchmark,
+    run_sample,
+    save_report,
+    to_json_report,
+    to_markdown_report,
+    to_text_report,
+)
 from .type_accelerators import TypeAcceleratorRegistry
 from .type_casting_resolver import PowerShellTypeCastingResolver
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 __all__ = [
     "TokenType",
     "Token",
@@ -72,6 +92,24 @@ __all__ = [
     "export_ast_dot",
     "export_ast_json",
     "extract_ast_metrics",
+    "CorpusSample",
+    "get_corpus",
+    "get_sample",
+    "get_corpus_by_category",
+    "SampleBenchmarkResult",
+    "CorpusBenchmarkSummary",
+    "calculate_entropy",
+    "calculate_size_reduction",
+    "detect_artifacts",
+    "calculate_indicator_recall",
+    "check_ast_validity",
+    "calculate_fidelity_score",
+    "run_sample",
+    "run_benchmark",
+    "to_text_report",
+    "to_json_report",
+    "to_markdown_report",
+    "save_report",
     "decrypt_secure_string",
     "encrypt_secure_string",
     "zeroize_buffer",

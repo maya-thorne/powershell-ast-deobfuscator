@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.9.0-blue.svg?style=flat-square" alt="Release v0.9.0" /></a>
+  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.10.0-blue.svg?style=flat-square" alt="Release v0.10.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MT--SRL-emerald.svg?style=flat-square" alt="License MT-SRL" /></a>
   <a href="ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-Active-purple.svg?style=flat-square" alt="Roadmap Active" /></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Policy-red.svg?style=flat-square" alt="Security Policy" /></a>
@@ -55,6 +55,7 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 11. **SecureString Decryption &amp; AST Reduction (`src/secure_string_reducer.py`)**: Statically resolves AES encryption keys, decrypts PowerShell `76492d11...` envelopes, unwraps Marshal BSTR and credential password access, and scrubs sensitive memory buffers.
 12. **AST Normalization &amp; Constant Folding (`src/normalizer.py`)**: Inlines string formats (`-f`), collapses string concatenations, strips parentheses artifacts, reduces call operators, and serializes clean syntax.
 13. **Fixed-Point Convergence (`src/deobfuscator_engine.py`)**: Iterates reduction passes until the code reaches a stable, non-mutating fixed point.
+14. **Automated Benchmark Harness &amp; Telemetry (`src/benchmark.py`)**: Runs evaluation over a 30-sample corpus across 10 categories, calculating Shannon entropy, artifact removal, ground-truth indicator recall, and composite fidelity score.
 
 
 ---
@@ -96,6 +97,7 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | **Casing Randomization Normalization** | `iNvOkE-eXpReSsIoN` | `Invoke-Expression` |
 | **Type Casing Restoration** | `[sYsTeM.nEt.wEbClIeNt]` | `[System.Net.WebClient]` |
 | **Expandable String Inlining** | `"prefix $( 'cmd' ) suffix"` | `"prefix cmd suffix"` |
+| **Automated Benchmark Harness** | `pwsh-ast --benchmark` | 30-sample corpus evaluation, recall, entropy, and fidelity telemetry |
 
 ---
 
@@ -123,9 +125,13 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | `src/secure_string_crypto.py` | SecureString envelope parsing, AES-CBC decryption, and buffer zeroization |
 | `src/static_key_extractor.py` | Static AES key extractor from ranges, array literals, byte casts, and variables |
 | `src/secure_string_reducer.py` | AST reducer for ConvertTo-SecureString, Marshal BSTR, and credential objects |
+| `src/benchmark_corpus.py` | Curated 30-sample representative real-world obfuscated PowerShell corpus across 10 categories |
+| `src/benchmark_metrics.py` | Shannon entropy, artifact detection, ground-truth recall, AST validity &amp; fidelity scoring |
+| `src/benchmark_runner.py` | Automated batch test runner, execution timer, and Text/JSON/Markdown report generator |
+| `src/benchmark.py` | Unified public facade for the automated benchmark suite |
 | `src/deobfuscator_engine.py` | Multi-pass fixed-point convergence engine |
-| `src/cli.py` | Command-line interface with AST visualization, export, forensic layers &amp; token inspection flags |
-| `tests/` | Comprehensive unit test suite covering lexer, parser, visualizer, exporter, normalizer, crypto, and deobfuscation engine |
+| `src/cli.py` | Command-line interface with AST visualization, benchmark runner, export &amp; forensic telemetry |
+| `tests/` | Comprehensive test suite (237 unit tests) covering lexer, parser, normalizer, crypto, and benchmark harness |
 | `ROADMAP.md` | Public development milestones and engineering roadmap |
 | `SECURITY.md` | Vulnerability disclosure policy and reporting process |
 
@@ -140,10 +146,10 @@ Run the full automated test suite:
 python -m unittest discover tests -v
 ```
 
-All 210 unit tests execute with zero failures:
+All 237 unit tests execute with zero failures:
 
 ```text
-Ran 210 tests in 0.138s
+Ran 237 tests in 0.153s
 
 OK
 ```
@@ -173,6 +179,25 @@ python -m src.cli "iNvOkE-eXpReSsIoN `$((('calc.exe')))"
 
 # Disable specific passes if raw casing or subexpression syntax is required
 python -m src.cli sample.ps1 --no-normalize-casing --no-unwrap-subexpr
+```
+
+#### Automated Benchmark Harness
+
+Run automated deobfuscation accuracy and fidelity benchmarks across the curated 30-sample corpus:
+
+```bash
+# Run full 30-sample benchmark suite (default text table)
+python -m src.cli --benchmark
+
+# Run benchmark for a specific sample ID
+python -m src.cli --benchmark-sample SAMPLE-01
+
+# Run benchmark for an entire evasion category
+python -m src.cli --benchmark-category "Format Operator Shuffle"
+
+# Export benchmark telemetry as JSON or Markdown report
+python -m src.cli --benchmark --benchmark-format markdown --benchmark-report docs/benchmark_report.md
+python -m src.cli --benchmark --benchmark-format json --benchmark-report docs/benchmark_report.json
 ```
 
 #### AST Visualization &amp; Export
@@ -205,6 +230,7 @@ python -m src.cli "Get-Process | Out-String" --stats
 from src.deobfuscator_engine import PowerShellDeobfuscator
 from src.ast_visualizer import render_ast_tree
 from src.ast_exporter import export_ast_mermaid, export_ast_json, extract_ast_metrics
+from src.benchmark import run_benchmark, to_text_report, to_markdown_report
 
 # 1. Multi-pass deobfuscation
 engine = PowerShellDeobfuscator()
@@ -213,15 +239,20 @@ cleaned_code = engine.deobfuscate(raw_code)
 print(cleaned_code)
 # Output: Invoke-Expression 'DownloadString'
 
-# 2. AST Visualization
+# 2. Automated Benchmark Harness Execution
+summary = run_benchmark()
+print(f"Fidelity Score: {summary.average_fidelity_score}%, Recall: {summary.average_indicator_recall * 100.0}%")
+print(to_text_report(summary))
+
+# 3. AST Visualization
 tree = render_ast_tree("$x = 'test' + 'ing'")
 print(tree)
 
-# 3. Export to Mermaid diagram
+# 4. Export to Mermaid diagram
 mermaid_diagram = export_ast_mermaid("if ($true) { Get-Process }")
 print(mermaid_diagram)
 
-# 4. Extract structural metrics
+# 5. Extract structural metrics
 metrics = extract_ast_metrics("Get-Process | Out-String")
 print(f"Total nodes: {metrics['total_nodes']}, Cyclomatic complexity: {metrics['cyclomatic_complexity']}")
 ```

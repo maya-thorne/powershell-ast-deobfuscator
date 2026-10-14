@@ -5,6 +5,34 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-10-14
+
+### Added
+- Automated 30-sample obfuscated PowerShell benchmark corpus (`src/benchmark_corpus.py`) covering 10 distinct real-world evasion categories: String Concat & Backticks, Format Operator Shuffle, Type Casting & Array Join, Index Shuffling & Reverse Slicing, Special Environment & Preference Slicing, Reflection & Dynamic Member Invocation, Pipeline & ScriptBlock Control Flow, Recursive Base64 Encoded Commands, Subexpressions & Casing Randomization, and Cryptographic Envelopes & Composite APT Cradles.
+- Standardized `CorpusSample` data structure modeling sample identity, category, attack context, expected ground-truth indicators, and MITRE ATT&CK technique tags.
+- Corpus discovery and query helpers: `get_corpus()`, `get_sample(sample_id)`, and `get_corpus_by_category(category)`.
+- Multi-dimensional benchmark metrics and fidelity measurement engine (`src/benchmark_metrics.py`):
+  - Shannon entropy calculator (`calculate_entropy()`) measuring information density in bits per character.
+  - Script size reduction delta calculator (`calculate_size_reduction()`).
+  - Obfuscation artifact frequency detector (`detect_artifacts()`) identifying backticks, format operators, Base64 flags, shuffled index slices, nested subexpressions, and casing anomalies.
+  - Ground-truth indicator recovery recall calculator (`calculate_indicator_recall()`) tracking recovered vs missing tokens.
+  - Full AST syntax validity checker (`check_ast_validity()`) verifying parsed syntax tree integrity via `PowerShellLexer` and `PowerShellParser`.
+  - Composite fidelity scoring model (`calculate_fidelity_score()`, 0.0 to 100.0%) weighting indicator recall (45%), AST validity (25%), artifact elimination (20%), and entropy stability (10%).
+  - Telemetry dataclasses `SampleBenchmarkResult` and `CorpusBenchmarkSummary`.
+- Automated benchmark runner and report generation engine (`src/benchmark_runner.py`):
+  - Execution runners `run_sample()` and `run_benchmark()` measuring wall-clock latency per sample and across entire corpora.
+  - Multi-format report serializers: ASCII text console table (`to_text_report()`), structured JSON (`to_json_report()`), and GitHub-Flavored Markdown (`to_markdown_report()`).
+  - Safe UTF-8 file persistence helper (`save_report()`).
+- Unified public facade (`src/benchmark.py`) exposing all benchmark corpus, metrics, and runner symbols.
+- CLI enhancements (`src/cli.py`):
+  - Added `--benchmark` flag to execute full corpus evaluation.
+  - Added `--benchmark-sample <id>` to evaluate an isolated sample.
+  - Added `--benchmark-category <category>` to evaluate category-specific sample subsets.
+  - Added `--benchmark-report <path>` to persist reports directly to disk.
+  - Added `--benchmark-format {text,json,markdown}` (default: text).
+  - Made the positional `input` parameter optional (`nargs="?", default=None`) for clean benchmark execution without dummy strings.
+- Comprehensive unit and integration test suite (`tests/test_benchmark_harness.py`) with 27 new tests, expanding test coverage to 237 tests passing with 100% success rate.
+
 ## [0.9.0] - 2026-10-13
 
 ### Added

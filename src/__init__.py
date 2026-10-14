@@ -9,6 +9,8 @@ from .ast_nodes import (
     DynamicMemberAccessNode,
     DynamicMethodCallNode,
     DynamicStaticMemberAccessNode,
+    ForEachStatementNode,
+    ForStatementNode,
     IfStatementNode,
     IndexAccessNode,
     ScriptBlockNode,
@@ -18,6 +20,7 @@ from .ast_nodes import (
     VariableNode,
     WhileStatementNode,
 )
+from .bitwise_folding_engine import PowerShellBitwiseFoldingEngine
 from .deobfuscator_engine import PowerShellDeobfuscator
 from .environment_inliner import PowerShellEnvironmentInliner
 from .lexer import PowerShellLexer
@@ -77,8 +80,9 @@ from .webclient_tracer import (
     extract_download_urls,
     trace_webclient,
 )
+from .xor_loop_decryptor import PowerShellXorLoopDecryptor
 
-__version__ = "0.11.0"
+__version__ = "0.12.0"
 __all__ = [
     "TokenType",
     "Token",
@@ -86,6 +90,8 @@ __all__ = [
     "PowerShellParser",
     "PowerShellNormalizer",
     "PowerShellDeobfuscator",
+    "PowerShellBitwiseFoldingEngine",
+    "PowerShellXorLoopDecryptor",
     "PowerShellEnvironmentInliner",
     "PowerShellReflectionUnwrapper",
     "PowerShellPipelineOptimizer",
@@ -146,6 +152,8 @@ __all__ = [
     "DynamicStaticMemberAccessNode",
     "IfStatementNode",
     "WhileStatementNode",
+    "ForStatementNode",
+    "ForEachStatementNode",
 ]
 
 

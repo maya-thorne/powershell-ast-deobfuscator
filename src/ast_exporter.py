@@ -15,7 +15,9 @@ from .ast_nodes import (
     DynamicMemberAccessNode,
     DynamicMethodCallNode,
     DynamicStaticMemberAccessNode,
+    ForEachStatementNode,
     FormatOpNode,
+    ForStatementNode,
     IdentifierNode,
     IfStatementNode,
     IndexAccessNode,
@@ -80,7 +82,7 @@ class ASTExporter:
     def _get_mermaid_shape(self, node: ASTNode, node_id: str, label: str) -> str:
         """Assigns semantic shapes in Mermaid based on AST node category."""
         escaped = self._escape_mermaid(label)
-        if isinstance(node, (IfStatementNode, WhileStatementNode)):
+        if isinstance(node, (IfStatementNode, WhileStatementNode, ForStatementNode, ForEachStatementNode)):
             return f'{node_id}{{"{escaped}"}}'  # Diamond for control flow
         if isinstance(node, (ScriptBlockNode, SubexpressionNode)):
             return f'{node_id}[["{escaped}"]]'  # Subroutine for scriptblocks and subexpressions
@@ -96,7 +98,7 @@ class ASTExporter:
         """Returns (shape, fillcolor, color) for Graphviz DOT nodes."""
         if isinstance(node, (ScriptBlockNode, SubexpressionNode)):
             return "box", "#e0f2fe", "#0284c7"
-        if isinstance(node, (IfStatementNode, WhileStatementNode)):
+        if isinstance(node, (IfStatementNode, WhileStatementNode, ForStatementNode, ForEachStatementNode)):
             return "diamond", "#fee2e2", "#ef4444"
         if isinstance(node, (StringLiteralNode, NumberLiteralNode, VariableNode, IdentifierNode)):
             return "ellipse", "#dcfce7", "#22c55e"
@@ -257,7 +259,7 @@ class ASTExporter:
                 variable_count += 1
             elif isinstance(current, (StringLiteralNode, NumberLiteralNode)):
                 literal_count += 1
-            elif isinstance(current, (IfStatementNode, WhileStatementNode)):
+            elif isinstance(current, (IfStatementNode, WhileStatementNode, ForStatementNode, ForEachStatementNode)):
                 conditional_count += 1
 
             if depth < self.max_depth:

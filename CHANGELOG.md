@@ -5,6 +5,35 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-10-14
+
+### Added
+- Compiler-grade arithmetic and bitwise static constant folding engine (`src/bitwise_folding_engine.py`):
+  - Constant evaluation for binary bitwise operators: `-bxor`, `-band`, `-bor`, `-shl`, and `-shr`.
+  - Constant evaluation for binary arithmetic operators: `+`, `-`, `*`, `/`, and `%` (with division-by-zero protection).
+  - Constant evaluation for unary operators: `-bnot`, `-not`, `!`, arithmetic negation (`-`), unary plus (`+`), and `-join`.
+  - Constant evaluation for comparison operators: `-eq`, `-ne`, `-gt`, `-ge`, `-lt`, and `-le`.
+  - Immediate type-cast reduction over folded numeric expressions: `[char](0x41 -bxor 0x20)` -> `'a'`.
+  - Shift bounds protection (clamped to 0..64) preventing denial-of-service and bit-shift overflow.
+- Compiler-grade static XOR loop decryption and byte transform evaluator (`src/xor_loop_decryptor.py`):
+  - Pipeline XOR loop resolution: `@(0x35, 0x21) | % { [char]($_ -bxor 0x55) }` -> `'ps'`.
+  - Repeating multi-byte key cipher resolution: `$bytes | % { $_ -bxor $k[$i++ % $k.Length] }`.
+  - Text encoding wrappers: `[System.Text.Encoding]::ASCII.GetString(...)` and `[System.Text.Encoding]::UTF8.GetString(...)`.
+  - Imperative `for` loops with accumulator pattern: `for ($i=0; $i -lt $enc.Length; $i++) { $out += [char]($enc[$i] -bxor $key) }`.
+  - Imperative `for` loops with in-place mutation: `for ($i=0; $i -lt $b.Length; $i++) { $b[$i] = $b[$i] -bxor $key }`.
+  - Imperative `foreach` and `while` loop static unwrapping.
+  - Cryptographic safety: enforces `zeroize_buffer()` memory scrubbing on decrypted plaintext buffers and key materials.
+  - DoS mitigation: `MAX_LOOP_ITERATIONS = 50000` hard gate preventing infinite execution loops.
+- Expanded AST Node hierarchy and Parser grammar (`src/ast_nodes.py`, `src/tokens.py`, `src/lexer.py`, `src/parser.py`):
+  - Added `ForStatementNode` and `ForEachStatementNode`.
+  - Added operator precedence tiers for bitwise (`-bxor`, `-band`, `-bor`) and bit shift (`-shl`, `-shr`) expressions.
+  - Added lexer and parser support for postfix increment/decrement (`++`, `--`) and compound assignments (`+=`, `-=`).
+  - Generalized method argument parsing to accept pipeline expressions directly (`[Encoding]::ASCII.GetString($data | % { ... })`).
+- Visualizer and exporter extensions (`src/ast_visualizer.py`, `src/ast_exporter.py`):
+  - Hierarchical tree, Mermaid flowchart, and Graphviz DOT support for `ForStatementNode` and `ForEachStatementNode`.
+- Comprehensive test suites (`tests/test_bitwise_folding.py`, `tests/test_xor_loop_decryptor.py`):
+  - 31 new unit and integration tests expanding total test count to 290 tests with 100% pass rate.
+
 ## [0.11.0] - 2026-10-14
 
 ### Added

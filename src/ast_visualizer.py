@@ -14,7 +14,9 @@ from .ast_nodes import (
     DynamicMemberAccessNode,
     DynamicMethodCallNode,
     DynamicStaticMemberAccessNode,
+    ForEachStatementNode,
     FormatOpNode,
+    ForStatementNode,
     IdentifierNode,
     IfStatementNode,
     IndexAccessNode,
@@ -172,6 +174,12 @@ class ASTVisualizer:
         if isinstance(node, WhileStatementNode):
             return "WhileStatement"
 
+        if isinstance(node, ForStatementNode):
+            return "ForStatement"
+
+        if isinstance(node, ForEachStatementNode):
+            return "ForEachStatement"
+
         return node.__class__.__name__
 
     def get_children(self, node: ASTNode) -> List[Tuple[str, ASTNode]]:
@@ -267,6 +275,24 @@ class ASTVisualizer:
         elif isinstance(node, WhileStatementNode):
             children.append(("condition", node.condition))
             children.append(("body", node.body))
+
+        elif isinstance(node, ForStatementNode):
+            if node.initializer:
+                children.append(("init", node.initializer))
+            if node.condition:
+                children.append(("cond", node.condition))
+            if node.iterator:
+                children.append(("iter", node.iterator))
+            if node.body:
+                children.append(("body", node.body))
+
+        elif isinstance(node, ForEachStatementNode):
+            if node.variable:
+                children.append(("var", node.variable))
+            if node.collection:
+                children.append(("collection", node.collection))
+            if node.body:
+                children.append(("body", node.body))
 
         return children
 

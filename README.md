@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.11.0-blue.svg?style=flat-square" alt="Release v0.11.0" /></a>
+  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.12.0-blue.svg?style=flat-square" alt="Release v0.12.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MT--SRL-emerald.svg?style=flat-square" alt="License MT-SRL" /></a>
   <a href="ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-Active-purple.svg?style=flat-square" alt="Roadmap Active" /></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Policy-red.svg?style=flat-square" alt="Security Policy" /></a>
@@ -44,19 +44,21 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 
 1. **Recursive Base64 Encoded Command Unwrapping (`src/encoded_command_unwrapper.py`)**: Recursively extracts and decodes `-EncodedCommand`, `-enc`, and `-e` CLI parameters across command lines and AST `CommandNode` structures with multi-encoding auto-detection (UTF-16LE, UTF-8, UTF-16BE, ASCII), Base64 padding auto-repair, and loop detection.
 2. **Lexical Scanning (`src/lexer.py`)**: Tokenizes PowerShell code character-by-character, resolving backtick escape sequences, subexpression tokens (`$(`), string literals, and variable identifiers.
-3. **Recursive Descent Parsing (`src/parser.py`)**: Converts token streams into structured AST hierarchies (`ScriptBlockNode`, `PipelineNode`, `FormatOpNode`, `CommandNode`, `SubexpressionNode`, `IndexAccessNode`, `UnaryOpNode`, `DynamicMemberAccessNode`, `DynamicMethodCallNode`, `DynamicStaticMemberAccessNode`, `IfStatementNode`, `WhileStatementNode`).
+3. **Recursive Descent Parsing (`src/parser.py`)**: Converts token streams into structured AST hierarchies (`ScriptBlockNode`, `PipelineNode`, `FormatOpNode`, `CommandNode`, `SubexpressionNode`, `IndexAccessNode`, `UnaryOpNode`, `DynamicMemberAccessNode`, `DynamicMethodCallNode`, `DynamicStaticMemberAccessNode`, `IfStatementNode`, `WhileStatementNode`, `ForStatementNode`, `ForEachStatementNode`).
 4. **Environment &amp; ExecutionContext Inlining (`src/environment_inliner.py`)**: Inlines Windows environment variables (`$env:COMSPEC`, `$env:PATH`), automatic variables (`$PSHOME`, `$ShellId`), preference strings, and unwraps `$ExecutionContext.InvokeCommand` static methods.
-5. **Subexpression Unwrapping &amp; Flattening (`src/subexpression_unwrapper.py`)**: Unboxes redundant subexpression wrappers (`$((('cmd.exe')))`), folds in-subexpression string concatenations, flattens expandable string interpolations, and propagates local assignments.
-6. **Casing Randomization Normalization (`src/casing_normalizer.py`)**: Normalizes randomized cmdlet names, 46 approved verbs, 150+ cmdlets and aliases, language keywords, .NET types/accelerators, member methods, and variables into canonical PascalCase or lowercase syntax.
-7. **Type Accelerator &amp; Casting Resolver (`src/type_casting_resolver.py`)**: Evaluates type accelerators (`[type]`, `[char[]]`, `[byte[]]`, `[int]`), array index shuffling, reverse slices (`'olleh'[-1..-5] -join ''`), join operators (`-join`), and static .NET conversion methods.
-8. **Reflection &amp; Dynamic Member Unwrapping (`src/reflection_unwrapper.py`)**: Statically resolves `.Invoke()`, `::Invoke()`, `GetMethod()`, `GetProperty()`, `GetField()`, dynamic member expressions (`$obj.('Substring')(0, 5)`), and evaluates safe pure .NET methods.
-9. **Pipeline Optimization (`src/pipeline_optimizer.py`)**: Evaluates static pipelines: unfolds Foreach mapping blocks (`| % { [char]$_ }`), filters slices and unique values via `Select-Object`, processes `Where-Object` predicates, and simplifies piped commands (`'calc.exe' | iex` -> `iex 'calc.exe'`).
-10. **ScriptBlock &amp; Control Flow Simplification (`src/scriptblock_simplifier.py`)**: Inlines invocation wrappers (`& { ... }`, `. { ... }`, `{ ... }.Invoke()`), folds trivial conditional branches (`if ($true)`, `if ($false)`), evaluates static comparisons, and eliminates dead code.
-11. **SecureString Decryption &amp; AST Reduction (`src/secure_string_reducer.py`)**: Statically resolves AES encryption keys, decrypts PowerShell `76492d11...` envelopes, unwraps Marshal BSTR and credential password access, and scrubs sensitive memory buffers.
-12. **AST Normalization &amp; Constant Folding (`src/normalizer.py`)**: Inlines string formats (`-f`), collapses string concatenations, strips parentheses artifacts, reduces call operators, and serializes clean syntax.
-13. **Fixed-Point Convergence (`src/deobfuscator_engine.py`)**: Iterates reduction passes until the code reaches a stable, non-mutating fixed point.
-14. **DownloadString &amp; WebClient API URL Carving (`src/webclient_tracer.py`)**: Statically traces and extracts remote payload download cradles, decodes obfuscated DWORD/hex/octal IPs, binds headers and proxies, and outputs normalized URLs.
-15. **Automated Benchmark Harness &amp; Telemetry (`src/benchmark.py`)**: Runs evaluation over a 30-sample corpus across 10 categories, calculating Shannon entropy, artifact removal, ground-truth indicator recall, and composite fidelity score.
+5. **Arithmetic &amp; Bitwise Constant Folding (`src/bitwise_folding_engine.py`)**: Evaluates constant bitwise operations (`-bxor`, `-band`, `-bor`, `-shl`, `-shr`, `-bnot`), arithmetic (`+`, `-`, `*`, `/`, `%`), comparison operators, and immediate cast reductions (`[char](0x41 -bxor 0x20)` -> `'a'`).
+6. **Static XOR Loop Decryption (`src/xor_loop_decryptor.py`)**: Statically resolves pipeline XOR streams (`@(105, 101, 120) | % { [char]($_ -bxor $k) }`), repeating multi-byte keys, encoding wrappers (`[System.Text.Encoding]::ASCII.GetString(...)`), and imperative `for`/`foreach`/`while` loops with zeroize buffer wiping.
+7. **Subexpression Unwrapping &amp; Flattening (`src/subexpression_unwrapper.py`)**: Unboxes redundant subexpression wrappers (`$((('cmd.exe')))`), folds in-subexpression string concatenations, flattens expandable string interpolations, and propagates local assignments.
+8. **Casing Randomization Normalization (`src/casing_normalizer.py`)**: Normalizes randomized cmdlet names, 46 approved verbs, 150+ cmdlets and aliases, language keywords, .NET types/accelerators, member methods, and variables into canonical PascalCase or lowercase syntax.
+9. **Type Accelerator &amp; Casting Resolver (`src/type_casting_resolver.py`)**: Evaluates type accelerators (`[type]`, `[char[]]`, `[byte[]]`, `[int]`), array index shuffling, reverse slices (`'olleh'[-1..-5] -join ''`), join operators (`-join`), and static .NET conversion methods.
+10. **Reflection &amp; Dynamic Member Unwrapping (`src/reflection_unwrapper.py`)**: Statically resolves `.Invoke()`, `::Invoke()`, `GetMethod()`, `GetProperty()`, `GetField()`, dynamic member expressions (`$obj.('Substring')(0, 5)`), and evaluates safe pure .NET methods.
+11. **Pipeline Optimization (`src/pipeline_optimizer.py`)**: Evaluates static pipelines: unfolds Foreach mapping blocks (`| % { [char]$_ }`), filters slices and unique values via `Select-Object`, processes `Where-Object` predicates, and simplifies piped commands (`'calc.exe' | iex` -> `iex 'calc.exe'`).
+12. **ScriptBlock &amp; Control Flow Simplification (`src/scriptblock_simplifier.py`)**: Inlines invocation wrappers (`& { ... }`, `. { ... }`, `{ ... }.Invoke()`), folds trivial conditional branches (`if ($true)`, `if ($false)`), evaluates static comparisons, and eliminates dead code.
+13. **SecureString Decryption &amp; AST Reduction (`src/secure_string_reducer.py`)**: Statically resolves AES encryption keys, decrypts PowerShell `76492d11...` envelopes, unwraps Marshal BSTR and credential password access, and scrubs sensitive memory buffers.
+14. **AST Normalization &amp; Constant Folding (`src/normalizer.py`)**: Inlines string formats (`-f`), collapses string concatenations, strips parentheses artifacts, reduces call operators, and serializes clean syntax.
+15. **Fixed-Point Convergence (`src/deobfuscator_engine.py`)**: Iterates reduction passes until the code reaches a stable, non-mutating fixed point.
+16. **DownloadString &amp; WebClient API URL Carving (`src/webclient_tracer.py`)**: Statically traces and extracts remote payload download cradles, decodes obfuscated DWORD/hex/octal IPs, binds headers and proxies, and outputs normalized URLs.
+17. **Automated Benchmark Harness &amp; Telemetry (`src/benchmark.py`)**: Runs evaluation over a 30-sample corpus across 10 categories, calculating Shannon entropy, artifact removal, ground-truth indicator recall, and composite fidelity score.
 
 
 ---
@@ -115,6 +117,8 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | `src/ast_nodes.py` | Abstract Syntax Tree node hierarchy definitions |
 | `src/parser.py` | Recursive descent syntax tree parser |
 | `src/normalizer.py` | AST constant folding, `-f` inlining, and clean source code serializer |
+| `src/bitwise_folding_engine.py` | Arithmetic and bitwise operator static constant folding engine |
+| `src/xor_loop_decryptor.py` | Static XOR decryption loop, repeating-key cipher evaluator & memory wiper |
 | `src/subexpression_unwrapper.py` | Subexpression $(...) unboxing, redundant nesting elimination &amp; expandable string inliner |
 | `src/casing_normalizer.py` | Canonical cmdlet, verb, keyword, type accelerator, member &amp; variable casing normalizer |
 | `src/ast_visualizer.py` | AST visualizer, Unicode and ASCII hierarchical tree renderer |
@@ -136,7 +140,7 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | `src/webclient_tracer.py` | WebClient, HttpClient, download cmdlet static tracer &amp; remote payload URL carving engine |
 | `src/deobfuscator_engine.py` | Multi-pass fixed-point convergence engine |
 | `src/cli.py` | Command-line interface with AST visualization, benchmark runner, URL carver &amp; forensic telemetry |
-| `tests/` | Comprehensive test suite (259 unit tests) covering lexer, parser, normalizer, crypto, URL carving &amp; benchmarks |
+| `tests/` | Comprehensive test suite (290 unit tests) covering lexer, parser, normalizer, crypto, URL carving &amp; benchmarks |
 | `ROADMAP.md` | Public development milestones and engineering roadmap |
 | `SECURITY.md` | Vulnerability disclosure policy and reporting process |
 
@@ -151,10 +155,10 @@ Run the full automated test suite:
 python -m unittest discover tests -v
 ```
 
-All 259 unit tests execute with zero failures:
+All 290 unit tests execute with zero failures:
 
 ```text
-Ran 259 tests in 0.095s
+Ran 290 tests in 0.151s
 
 OK
 ```

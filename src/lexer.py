@@ -324,6 +324,16 @@ class PowerShellLexer:
                 tokens.append(Token(TokenType.OP_PIPE, "|", line, col))
                 continue
             if ch == "+":
+                if self.peek(1) == "+":
+                    self.advance()
+                    self.advance()
+                    tokens.append(Token(TokenType.IDENTIFIER, "++", line, col))
+                    continue
+                if self.peek(1) == "=":
+                    self.advance()
+                    self.advance()
+                    tokens.append(Token(TokenType.IDENTIFIER, "+=", line, col))
+                    continue
                 self.advance()
                 tokens.append(Token(TokenType.OP_PLUS, "+", line, col))
                 continue
@@ -347,7 +357,7 @@ class PowerShellLexer:
                     tokens.append(Token(TokenType.OP_DOT, ".", line, col))
                     continue
 
-            # Operators: '-join', '-f', or negative numbers
+            # Operators: '-join', '-f', negative numbers, '--', '-=', or binary '-'
             if ch == "-":
                 remaining = self.source[self.pos:]
                 if re.match(r"^-join\b", remaining, re.IGNORECASE):
@@ -359,6 +369,16 @@ class PowerShellLexer:
                     self.advance()
                     self.advance()
                     tokens.append(Token(TokenType.OP_FORMAT, "-f", line, col))
+                    continue
+                if self.peek(1) == "-":
+                    self.advance()
+                    self.advance()
+                    tokens.append(Token(TokenType.IDENTIFIER, "--", line, col))
+                    continue
+                if self.peek(1) == "=":
+                    self.advance()
+                    self.advance()
+                    tokens.append(Token(TokenType.IDENTIFIER, "-=", line, col))
                     continue
                 if self.peek(1) and self.peek(1).isdigit():
                     last_type = tokens[-1].type if tokens else None
@@ -381,6 +401,17 @@ class PowerShellLexer:
                             num_tok.raw = f"-{num_tok.raw}"
                         tokens.append(num_tok)
                         continue
+                    else:
+                        # Binary minus: 10-5 -> '-' then '5'
+                        self.advance()
+                        tokens.append(Token(TokenType.IDENTIFIER, "-", line, col))
+                        continue
+                last_type = tokens[-1].type if tokens else None
+                if last_type in (TokenType.NUMBER_LITERAL, TokenType.STRING_LITERAL, TokenType.VARIABLE, TokenType.RPAREN, TokenType.RBRACKET) and (not self.peek(1) or not self.peek(1).isalpha() and self.peek(1) != "_"):
+                    self.advance()
+                    tokens.append(Token(TokenType.IDENTIFIER, "-", line, col))
+                    continue
+
 
             # String literals
             if ch == "'":

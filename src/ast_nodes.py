@@ -64,7 +64,7 @@ class FormatOpNode(ASTNode):
 
 @dataclass
 class AssignmentNode(ASTNode):
-    variable: VariableNode
+    variable: ASTNode
     expression: ASTNode
 
 
@@ -180,6 +180,24 @@ class SubexpressionNode(ASTNode):
 
     def accept(self, visitor: Any) -> Any:
         return visitor.visit(self)
+
+
+@dataclass
+class ForStatementNode(ASTNode):
+    """Represents PowerShell for loop: for (initializer; condition; iterator) { body }."""
+    initializer: Optional[ASTNode] = None
+    condition: Optional[ASTNode] = None
+    iterator: Optional[ASTNode] = None
+    body: Optional[ASTNode] = None
+
+
+@dataclass
+class ForEachStatementNode(ASTNode):
+    """Represents PowerShell foreach loop: foreach ($variable in $collection) { body }."""
+    variable: Optional[ASTNode] = None
+    collection: Optional[ASTNode] = None
+    body: Optional[ASTNode] = None
+
 
 
 

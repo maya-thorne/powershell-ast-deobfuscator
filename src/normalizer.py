@@ -15,7 +15,9 @@ from .ast_nodes import (
     DynamicMemberAccessNode,
     DynamicMethodCallNode,
     DynamicStaticMemberAccessNode,
+    ForEachStatementNode,
     FormatOpNode,
+    ForStatementNode,
     IdentifierNode,
     IfStatementNode,
     IndexAccessNode,
@@ -34,6 +36,7 @@ from .ast_nodes import (
     VariableNode,
     WhileStatementNode,
 )
+from .bitwise_folding_engine import PowerShellBitwiseFoldingEngine
 from .casing_normalizer import PowerShellCasingNormalizer
 from .encoded_command_unwrapper import PowerShellEncodedCommandUnwrapper
 from .environment_inliner import PowerShellEnvironmentInliner
@@ -43,6 +46,7 @@ from .scriptblock_simplifier import PowerShellScriptBlockSimplifier
 from .secure_string_reducer import PowerShellSecureStringReducer
 from .subexpression_unwrapper import PowerShellSubexpressionUnwrapper
 from .type_casting_resolver import PowerShellTypeCastingResolver
+from .xor_loop_decryptor import PowerShellXorLoopDecryptor
 
 
 class PowerShellNormalizer:
@@ -69,6 +73,8 @@ class PowerShellNormalizer:
         self.env_inliner = PowerShellEnvironmentInliner(symbols=self.symbols, env=env)
         self.sec_reducer = PowerShellSecureStringReducer(symbols=self.symbols)
         self.type_resolver = PowerShellTypeCastingResolver(symbols=self.symbols)
+        self.bitwise_folder = PowerShellBitwiseFoldingEngine(symbols=self.symbols)
+        self.xor_decryptor = PowerShellXorLoopDecryptor(symbols=self.symbols)
         self.refl_unwrapper = PowerShellReflectionUnwrapper(symbols=self.symbols)
         self.pipe_optimizer = PowerShellPipelineOptimizer(symbols=self.symbols)
         self.sb_simplifier = PowerShellScriptBlockSimplifier(symbols=self.symbols)
@@ -82,23 +88,29 @@ class PowerShellNormalizer:
         node = self.env_inliner.inline(node)
         # Pass 2: Reduce SecureString operations
         node = self.sec_reducer.reduce(node)
-        # Pass 3: Resolve type accelerators, char/byte casts & array shuffling
+        # Pass 3: Arithmetic and bitwise static constant folding
+        node = self.bitwise_folder.fold(node)
+        # Pass 4: Static XOR loop decryption and byte transform evaluation
+        node = self.xor_decryptor.decrypt(node)
+        # Pass 5: Resolve type accelerators, char/byte casts & array shuffling
         node = self.type_resolver.resolve(node)
-        # Pass 4: Reflection & dynamic member unwrapping
+        # Pass 6: Reflection & dynamic member unwrapping
         node = self.refl_unwrapper.unwrap(node)
-        # Pass 5: Pipeline stage optimization (| %, | select, | where)
+        # Pass 7: Pipeline stage optimization (| %, | select, | where)
         node = self.pipe_optimizer.optimize(node)
-        # Pass 6: ScriptBlock & control flow simplification (& { ... }, if ($true))
+        # Pass 8: ScriptBlock & control flow simplification (& { ... }, if ($true))
         node = self.sb_simplifier.simplify(node)
-        # Pass 7: Subexpression unwrapping ($(...))
+        # Pass 9: Subexpression unwrapping ($(...))
         if self.unwrap_subexpr:
             node = self.subexpr_unwrapper.unwrap(node)
-        # Pass 8: Canonical AST normalizations (folding, backticks)
+        # Pass 10: Canonical AST normalizations (folding, backticks)
         node = self.visit(node)
-        # Pass 9: Cascading convergence passes
+        # Pass 11: Cascading convergence passes
         node = self.enc_unwrapper.unwrap_ast(node)
         if self.unwrap_subexpr:
             node = self.subexpr_unwrapper.unwrap(node)
+        node = self.bitwise_folder.fold(node)
+        node = self.xor_decryptor.decrypt(node)
         node = self.pipe_optimizer.optimize(node)
         node = self.type_resolver.resolve(node)
         node = self.sb_simplifier.simplify(node)
@@ -107,7 +119,7 @@ class PowerShellNormalizer:
         node = self.sec_reducer.reduce(node)
         if self.unwrap_subexpr:
             node = self.subexpr_unwrapper.unwrap(node)
-        # Pass 10: Canonical casing normalization
+        # Pass 12: Canonical casing normalization
         if self.normalize_casing:
             node = self.casing_normalizer.normalize(node)
         return node
@@ -178,6 +190,19 @@ class PowerShellNormalizer:
             )
         elif isinstance(node, WhileStatementNode):
             return WhileStatementNode(condition=self.visit(node.condition), body=self.visit(node.body))
+        elif isinstance(node, ForStatementNode):
+            return ForStatementNode(
+                initializer=self.visit(node.initializer) if node.initializer else None,
+                condition=self.visit(node.condition) if node.condition else None,
+                iterator=self.visit(node.iterator) if node.iterator else None,
+                body=self.visit(node.body) if node.body else None,
+            )
+        elif isinstance(node, ForEachStatementNode):
+            return ForEachStatementNode(
+                variable=self.visit(node.variable) if node.variable else None,
+                collection=self.visit(node.collection) if node.collection else None,
+                body=self.visit(node.body) if node.body else None,
+            )
         elif isinstance(node, SubexpressionNode):
             return SubexpressionNode(statements=[self.visit(s) for s in node.statements])
         return node
@@ -307,10 +332,11 @@ class PowerShellNormalizer:
         return FormatOpNode(format_string=norm_fmt, arguments=norm_args)
 
     def visit_assignment(self, node: AssignmentNode) -> AssignmentNode:
+        norm_var = self.visit(node.variable)
         norm_expr = self.visit(node.expression)
-        if isinstance(norm_expr, StringLiteralNode):
-            self.symbols[node.variable.name.lower()] = norm_expr.value
-        return AssignmentNode(variable=node.variable, expression=norm_expr)
+        if isinstance(norm_var, VariableNode) and isinstance(norm_expr, (StringLiteralNode, NumberLiteralNode)):
+            self.symbols[norm_var.name.lower()] = norm_expr.value
+        return AssignmentNode(variable=norm_var, expression=norm_expr)
 
     def to_source(self, node: ASTNode) -> str:
         """Serializes normalized AST back into canonical PowerShell code string."""
@@ -358,9 +384,11 @@ class PowerShellNormalizer:
             return f"{fmt_str} -f {args_str}"
 
         if isinstance(node, AssignmentNode):
-            if node.variable.scope:
-                return f"${node.variable.scope}:{node.variable.name} = {self.to_source(node.expression)}"
-            return f"${node.variable.name} = {self.to_source(node.expression)}"
+            if isinstance(node.variable, VariableNode):
+                if node.variable.scope:
+                    return f"${node.variable.scope}:{node.variable.name} = {self.to_source(node.expression)}"
+                return f"${node.variable.name} = {self.to_source(node.expression)}"
+            return f"{self.to_source(node.variable)} = {self.to_source(node.expression)}"
 
         if isinstance(node, ParenthesizedExpressionNode):
             if isinstance(node.expression, (StringLiteralNode, NumberLiteralNode, IdentifierNode)):
@@ -410,6 +438,8 @@ class PowerShellNormalizer:
             return f"[{clean_type}]::({self.to_source(node.member_expr)})"
 
         if isinstance(node, UnaryOpNode):
+            if node.operator in ("++", "--"):
+                return f"{self.to_source(node.operand)}{node.operator}"
             return f"{node.operator} {self.to_source(node.operand)}"
 
         if isinstance(node, IndexAccessNode):
@@ -432,6 +462,19 @@ class PowerShellNormalizer:
             cond_str = self.to_source(node.condition)
             body_str = self.to_source(node.body)
             return f"while ({cond_str}) {body_str}"
+
+        if isinstance(node, ForStatementNode):
+            init_str = self.to_source(node.initializer) if node.initializer else ""
+            cond_str = self.to_source(node.condition) if node.condition else ""
+            iter_str = self.to_source(node.iterator) if node.iterator else ""
+            body_str = self.to_source(node.body) if node.body else "{}"
+            return f"for ({init_str}; {cond_str}; {iter_str}) {body_str}"
+
+        if isinstance(node, ForEachStatementNode):
+            var_str = self.to_source(node.variable) if node.variable else "$item"
+            coll_str = self.to_source(node.collection) if node.collection else "@()"
+            body_str = self.to_source(node.body) if node.body else "{}"
+            return f"foreach ({var_str} in {coll_str}) {body_str}"
 
         if isinstance(node, SubexpressionNode):
             if len(node.statements) == 1:

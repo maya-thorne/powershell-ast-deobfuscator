@@ -17,12 +17,12 @@ This document tracks shipped capabilities and future engineering milestones for 
 - [x] **Subexpression Splitting & Casing Randomization Normalizer** — Subexpression (`$(...)`) unboxing and flattening, redundant nested wrapper stripping (`$((('cmd.exe')))`), concatenation folding inside subexpressions, expandable string interpolation, local assignment propagation (`$($x='calc'; $x)`), subexpression indexing (`$('abc')[1]`), canonical casing restoration for 46 approved PowerShell verbs, 150+ cmdlets and aliases, language keywords, .NET type accelerators and classes (`[byte[]]`, `[System.Net.WebClient]`), instance and static method calls, CLI parameters (`-EncodedCommand`), and automatic/environment variables (`$true`, `$false`, `$null`, `$env:COMSPEC`) (`src/subexpression_unwrapper.py`, `src/casing_normalizer.py`).
 - [x] **Automated Deobfuscation Benchmark Runner & Accuracy Harness** — Curated 30-sample obfuscated PowerShell corpus across 10 evasion categories, multi-dimensional fidelity telemetry (Shannon entropy, artifact reduction, ground-truth indicator recall, AST syntax validity), composite fidelity scoring (0-100%), ASCII/JSON/Markdown report generation, and CLI benchmark execution flags (`--benchmark`, `--benchmark-sample`, `--benchmark-category`, `--benchmark-report`, `--benchmark-format`) (`src/benchmark.py`, `src/benchmark_corpus.py`, `src/benchmark_metrics.py`, `src/benchmark_runner.py`).
 - [x] **DownloadString & WebClient API Remote Payload Carving** — Compiler-grade AST static tracing and heuristic URL carving for WebClient, HttpClient, HttpWebRequest, and download cmdlets (`Invoke-WebRequest`, `iwr`, `Invoke-RestMethod`, `irm`, `Start-BitsTransfer`), resolving obfuscated decimal/DWORD, hexadecimal, octal, and dotted IPs, tracking headers and proxies, detecting download cradles (`iex_download_string`, `file_download_execute`, `in_memory_assembly_load`), and CLI integration (`--carve-urls`, `--urls`) (`src/webclient_tracer.py`).
+- [x] **Arithmetic & Bitwise Operator Static Folding & XOR Loop Decryptor** — Compiler-grade static constant evaluation for bitwise (`-bxor`, `-band`, `-bor`, `-shl`, `-shr`, `-bnot`), arithmetic (`+`, `-`, `*`, `/`, `%`), comparisons (`-eq`, `-ne`, `-gt`, `-ge`, `-lt`, `-le`), and pipeline/imperative XOR loop static decryption engine with single/multi-byte key recovery, encoding wrappers, and zeroize memory wiping (`src/bitwise_folding_engine.py`, `src/xor_loop_decryptor.py`).
 
 ---
 
 ## Planned Milestones
 
-- [ ] **Arithmetic & Bitwise Operator Static Folding** — Constant reduction for XOR, SHL, and SHR loops.
 - [ ] **Recursive IEX Unwrapper & Execution Tree Flattener** — Multi-layered `iex(iex(...))` peeling.
 - [ ] **AMSI & ETW Bypass Static Pattern Detection** — Signature detection and automatic deobfuscation of AmsiScanBuffer patch loops.
 - [ ] **Runspace Pool & Multi-Thread Pipeline Decompiler** — Static decomposition of runspace-isolated background jobs.
@@ -40,3 +40,6 @@ This document tracks shipped capabilities and future engineering milestones for 
 - [ ] **PowerShell .NET AppDomain & AssemblyResolve Dynamic Hook Tracer** — Static decomposition of custom assembly resolution and encrypted resource packers.
 - [ ] **PowerShell AMSI Memory Patching Multi-Pattern Analyzer** — Static detection and signature extraction for AmsiScanBuffer, AmsiInitialize, and AmsiOpenSession memory patching.
 - [ ] **Constrained Language Mode (CLM) Escape Simulator** — Static modeling of execution pathways and policy boundary bypass verification.
+- [ ] **PowerShell .NET P/Invoke & DllImport Native Windows API Resolver** — Static detection and signature extraction for kernel32/ntdll memory injection primitives.
+- [ ] **PowerShell Variable Scope Mangle & ExecutionContext Inliner** — Reverse tracking of execution path and calling context obfuscation.
+- [ ] **PowerShell AST-Based Control Flow Flattening (CFF) De-dispatcher** — State-machine-based switch-case and while loop dispatcher deobfuscation engine.

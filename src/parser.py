@@ -14,7 +14,9 @@ from .ast_nodes import (
     DynamicMemberAccessNode,
     DynamicMethodCallNode,
     DynamicStaticMemberAccessNode,
+    ForEachStatementNode,
     FormatOpNode,
+    ForStatementNode,
     IdentifierNode,
     IfStatementNode,
     IndexAccessNode,
@@ -98,7 +100,8 @@ class PowerShellParser:
         return False
 
     def parse_statement(self) -> Optional[ASTNode]:
-        # Check variable or property/index assignment: $var = expr, $var.Prop = expr, $var[idx] = expr
+        # Check variable or property/index assignment or increment/decrement:
+        # $var = expr, $var += expr, $var -= expr, $var++, $var--, $var[idx] = expr, $var.Prop = expr
         if self.current().type == TokenType.VARIABLE:
             save_pos = self.pos
             target = self.parse_expression()
@@ -109,7 +112,73 @@ class PowerShellParser:
                     variable=target,
                     expression=expr,
                 )
+            elif self.current().type == TokenType.IDENTIFIER and self.current().value == "+=":
+                self.advance()  # Skip '+='
+                expr = self.parse_pipeline()
+                return AssignmentNode(
+                    variable=target,
+                    expression=BinaryOpNode(left=target, operator="+", right=expr),
+                )
+            elif self.current().type == TokenType.IDENTIFIER and self.current().value == "-=":
+                self.advance()  # Skip '-='
+                expr = self.parse_pipeline()
+                return AssignmentNode(
+                    variable=target,
+                    expression=BinaryOpNode(left=target, operator="-", right=expr),
+                )
+            elif self.current().type == TokenType.IDENTIFIER and self.current().value == "++":
+                self.advance()  # Skip '++'
+                return AssignmentNode(
+                    variable=target,
+                    expression=BinaryOpNode(left=target, operator="+", right=NumberLiteralNode(value=1, raw="1")),
+                )
+            elif self.current().type == TokenType.IDENTIFIER and self.current().value == "--":
+                self.advance()  # Skip '--'
+                return AssignmentNode(
+                    variable=target,
+                    expression=BinaryOpNode(left=target, operator="-", right=NumberLiteralNode(value=1, raw="1")),
+                )
             self.pos = save_pos
+
+        # Check for loop: for (init; cond; iter) { body }
+        if self.current().type == TokenType.IDENTIFIER and self.current().value.lower() == "for":
+            self.advance()  # Skip 'for'
+            self.expect(TokenType.LPAREN)
+            init_stmt = None
+            if self.current().type != TokenType.SEMICOLON:
+                init_stmt = self.parse_statement()
+            self.expect(TokenType.SEMICOLON)
+            cond_stmt = None
+            if self.current().type != TokenType.SEMICOLON:
+                cond_stmt = self.parse_pipeline()
+            self.expect(TokenType.SEMICOLON)
+            iter_stmt = None
+            if self.current().type != TokenType.RPAREN:
+                iter_stmt = self.parse_statement()
+            self.expect(TokenType.RPAREN)
+            if self.current().type == TokenType.LBRACE:
+                body = self.parse_primary()
+            else:
+                s = self.parse_statement()
+                body = ScriptBlockNode(statements=[s] if s else [], is_nested=True)
+            return ForStatementNode(initializer=init_stmt, condition=cond_stmt, iterator=iter_stmt, body=body)
+
+        # Check foreach loop: foreach ($item in $collection) { body }
+        if self.current().type == TokenType.IDENTIFIER and self.current().value.lower() == "foreach":
+            if self.peek(1).type == TokenType.LPAREN:
+                self.advance()  # Skip 'foreach'
+                self.expect(TokenType.LPAREN)
+                var_target = self.parse_primary()
+                if self.current().type == TokenType.IDENTIFIER and self.current().value.lower() == "in":
+                    self.advance()  # Skip 'in'
+                coll_expr = self.parse_pipeline()
+                self.expect(TokenType.RPAREN)
+                if self.current().type == TokenType.LBRACE:
+                    body = self.parse_primary()
+                else:
+                    s = self.parse_statement()
+                    body = ScriptBlockNode(statements=[s] if s else [], is_nested=True)
+                return ForEachStatementNode(variable=var_target, collection=coll_expr, body=body)
 
         # Check if statement: if (cond) { ... } [else { ... }]
         if self.current().type == TokenType.IDENTIFIER and self.current().value.lower() == "if":
@@ -225,34 +294,82 @@ class PowerShellParser:
         return left
 
     def parse_binary_expression(self) -> ASTNode:
-        left = self.parse_unary_expression()
+        return self.parse_comparison_expression()
 
+    def parse_comparison_expression(self) -> ASTNode:
+        left = self.parse_bitwise_expression()
+        while self.current().type == TokenType.IDENTIFIER and self.current().value.lower() in (
+            "-eq", "-ne", "-gt", "-ge", "-lt", "-le",
+            "-like", "-notlike", "-match", "-notmatch",
+        ):
+            op_tok = self.advance()
+            right = self.parse_bitwise_expression()
+            left = BinaryOpNode(left=left, operator=op_tok.value.lower(), right=right)
+        return left
+
+    def parse_bitwise_expression(self) -> ASTNode:
+        left = self.parse_shift_expression()
+        while self.current().type == TokenType.IDENTIFIER and self.current().value.lower() in (
+            "-bxor", "-band", "-bor",
+        ):
+            op_tok = self.advance()
+            right = self.parse_shift_expression()
+            left = BinaryOpNode(left=left, operator=op_tok.value.lower(), right=right)
+        return left
+
+    def parse_shift_expression(self) -> ASTNode:
+        left = self.parse_additive_expression()
+        while self.current().type == TokenType.IDENTIFIER and self.current().value.lower() in (
+            "-shl", "-shr",
+        ):
+            op_tok = self.advance()
+            right = self.parse_additive_expression()
+            left = BinaryOpNode(left=left, operator=op_tok.value.lower(), right=right)
+        return left
+
+    def parse_additive_expression(self) -> ASTNode:
+        left = self.parse_multiplicative_expression()
         while True:
             if self.current().type in (TokenType.OP_PLUS, TokenType.OP_JOIN):
                 op_tok = self.advance()
-                right = self.parse_unary_expression()
+                right = self.parse_multiplicative_expression()
                 left = BinaryOpNode(left=left, operator=op_tok.value, right=right)
-            elif self.current().type == TokenType.IDENTIFIER and self.current().value.lower() in (
-                "-bxor", "-band", "-bor", "-shl", "-shr",
-                "-eq", "-ne", "-gt", "-ge", "-lt", "-le",
-                "-like", "-notlike", "-match", "-notmatch",
-            ):
+            elif self.current().type == TokenType.IDENTIFIER and self.current().value in ("-", "-join"):
                 op_tok = self.advance()
-                right = self.parse_unary_expression()
+                right = self.parse_multiplicative_expression()
                 left = BinaryOpNode(left=left, operator=op_tok.value.lower(), right=right)
             else:
                 break
+        return left
 
+    def parse_multiplicative_expression(self) -> ASTNode:
+        left = self.parse_unary_expression()
+        while self.current().type == TokenType.IDENTIFIER and self.current().value in ("*", "/", "%"):
+            # Ensure '%' is not followed by '{' which would be pipeline Foreach
+            if self.current().value == "%" and self.peek(1).type == TokenType.LBRACE:
+                break
+            op_tok = self.advance()
+            right = self.parse_unary_expression()
+            left = BinaryOpNode(left=left, operator=op_tok.value, right=right)
         return left
 
     def parse_unary_expression(self) -> ASTNode:
         if self.match(TokenType.OP_JOIN):
             operand = self.parse_unary_expression()
             return UnaryOpNode(operator="-join", operand=operand)
-        if self.current().type == TokenType.IDENTIFIER and self.current().value.lower() in ("-not", "!"):
+        if self.current().type == TokenType.IDENTIFIER and self.current().value.lower() in ("-not", "!", "-bnot"):
             op_tok = self.advance()
             operand = self.parse_unary_expression()
             return UnaryOpNode(operator=op_tok.value.lower(), operand=operand)
+        if self.current().type == TokenType.IDENTIFIER and self.current().value == "-":
+            self.advance()
+            operand = self.parse_unary_expression()
+            if isinstance(operand, NumberLiteralNode):
+                return NumberLiteralNode(value=-operand.value, raw=f"-{operand.raw}")
+            return UnaryOpNode(operator="-", operand=operand)
+        if self.current().type == TokenType.OP_PLUS:
+            self.advance()
+            return self.parse_unary_expression()
         return self.parse_postfix_expression()
 
     def parse_postfix_expression(self) -> ASTNode:
@@ -267,9 +384,9 @@ class PowerShellParser:
                     if self.match(TokenType.LPAREN):
                         args = []
                         if self.current().type != TokenType.RPAREN:
-                            args.append(self.parse_expression())
+                            args.append(self.parse_pipeline())
                             while self.match(TokenType.COMMA):
-                                args.append(self.parse_expression())
+                                args.append(self.parse_pipeline())
                         self.expect(TokenType.RPAREN)
                         node = MethodCallNode(target=node, method_name=member_name, arguments=args)
                     else:
@@ -280,9 +397,9 @@ class PowerShellParser:
                     if self.match(TokenType.LPAREN):
                         args = []
                         if self.current().type != TokenType.RPAREN:
-                            args.append(self.parse_expression())
+                            args.append(self.parse_pipeline())
                             while self.match(TokenType.COMMA):
-                                args.append(self.parse_expression())
+                                args.append(self.parse_pipeline())
                         self.expect(TokenType.RPAREN)
                         node = DynamicMethodCallNode(target=node, method_expr=member_expr, arguments=args)
                     else:
@@ -298,9 +415,9 @@ class PowerShellParser:
                     if self.match(TokenType.LPAREN):
                         args = []
                         if self.current().type != TokenType.RPAREN:
-                            args.append(self.parse_expression())
+                            args.append(self.parse_pipeline())
                             while self.match(TokenType.COMMA):
-                                args.append(self.parse_expression())
+                                args.append(self.parse_pipeline())
                         self.expect(TokenType.RPAREN)
                         node = StaticMemberAccessNode(type_name=type_name, member=member_name, arguments=args)
                     else:
@@ -311,9 +428,9 @@ class PowerShellParser:
                     if self.match(TokenType.LPAREN):
                         args = []
                         if self.current().type != TokenType.RPAREN:
-                            args.append(self.parse_expression())
+                            args.append(self.parse_pipeline())
                             while self.match(TokenType.COMMA):
-                                args.append(self.parse_expression())
+                                args.append(self.parse_pipeline())
                         self.expect(TokenType.RPAREN)
                         node = DynamicStaticMemberAccessNode(type_name=type_name, member_expr=member_expr, arguments=args)
                     else:
@@ -333,6 +450,10 @@ class PowerShellParser:
                     self.expect(TokenType.RBRACKET)
                     idx_node = idx
                 node = IndexAccessNode(target=node, index=idx_node)
+            # Post-increment / decrement: node++ or node--
+            if self.current().type == TokenType.IDENTIFIER and self.current().value in ("++", "--"):
+                op_tok = self.advance()
+                node = UnaryOpNode(operator=op_tok.value, operand=node)
                 continue
 
             break

@@ -119,6 +119,8 @@ class PowerShellReflectionUnwrapper:
 
     def visit_assignment(self, node: AssignmentNode) -> AssignmentNode:
         norm_expr = self.visit(node.expression)
+        if not hasattr(node.variable, "name"):
+            return AssignmentNode(variable=node.variable, expression=norm_expr)
         var_key = node.variable.name.lower()
 
         # Track reflection method references: $m = [Type].GetMethod('MethodName')

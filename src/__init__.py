@@ -70,8 +70,15 @@ from .benchmark import (
 )
 from .type_accelerators import TypeAcceleratorRegistry
 from .type_casting_resolver import PowerShellTypeCastingResolver
+from .webclient_tracer import (
+    PowerShellWebClientTracer,
+    RemotePayloadTarget,
+    carve_all_urls,
+    extract_download_urls,
+    trace_webclient,
+)
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"
 __all__ = [
     "TokenType",
     "Token",
@@ -85,6 +92,11 @@ __all__ = [
     "PowerShellScriptBlockSimplifier",
     "PowerShellSubexpressionUnwrapper",
     "PowerShellCasingNormalizer",
+    "PowerShellWebClientTracer",
+    "RemotePayloadTarget",
+    "trace_webclient",
+    "carve_all_urls",
+    "extract_download_urls",
     "ASTVisualizer",
     "render_ast_tree",
     "ASTExporter",

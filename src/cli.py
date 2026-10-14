@@ -22,6 +22,7 @@ from .benchmark import (
 from .deobfuscator_engine import PowerShellDeobfuscator
 from .lexer import PowerShellLexer
 from .parser import PowerShellParser
+from .webclient_tracer import carve_all_urls, extract_download_urls, trace_webclient
 
 
 def main() -> None:
@@ -86,6 +87,16 @@ def main() -> None:
         "--extract-b64",
         action="store_true",
         help="Extract and print innermost Base64 decoded payload script directly",
+    )
+    parser.add_argument(
+        "--carve-urls",
+        action="store_true",
+        help="Extract and dump all carved remote payload download targets as structured JSON",
+    )
+    parser.add_argument(
+        "--urls",
+        action="store_true",
+        help="Extract and print unique canonical remote payload URLs (one per line)",
     )
     parser.add_argument(
         "--benchmark",
@@ -266,7 +277,36 @@ def main() -> None:
             print(output_text)
         return
 
-    # 4. Default: Full deobfuscation engine
+    # 4. Remote payload URL carving and WebClient cradle analysis
+    if args.carve_urls or args.urls:
+        engine = PowerShellDeobfuscator(
+            unwrap_subexpr=args.unwrap_subexpr,
+            normalize_casing=args.normalize_casing,
+        )
+        deobf_script = engine.deobfuscate(script_text)
+        targets = carve_all_urls(deobf_script)
+        raw_targets = carve_all_urls(script_text)
+        seen_urls = {t.url for t in targets}
+        for rt in raw_targets:
+            if rt.url not in seen_urls:
+                seen_urls.add(rt.url)
+                targets.append(rt)
+
+        if args.urls:
+            urls_list = sorted({t.url for t in targets if t.is_valid_url})
+            output_text = "\n".join(urls_list)
+        else:
+            output_text = json.dumps([t.to_dict() for t in targets], indent=2, ensure_ascii=False)
+
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as f:
+                f.write(output_text + "\n")
+            print(f"[+] Carved URLs saved to: {args.output}")
+        else:
+            print(output_text)
+        return
+
+    # 5. Default: Full deobfuscation engine
     engine = PowerShellDeobfuscator(
         unwrap_subexpr=args.unwrap_subexpr,
         normalize_casing=args.normalize_casing,

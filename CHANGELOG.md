@@ -5,6 +5,30 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-10-15
+
+### Added
+- Recursive IEX (Invoke-Expression) wrapper tracking and peeling engine (`src/iex_unwrapper.py`):
+  - Multi-vector invocation detection: direct cmdlet calls (`iex`, `Invoke-Expression`), call operator (`&`) and dot sourcing (`.`) with string/expression targets, ScriptBlock API invocations (`[scriptblock]::Create($code).Invoke()`, `.InvokeReturnAsIs()`), and ExecutionContext commands (`$ExecutionContext.InvokeCommand.InvokeScript($code)`).
+  - Multi-stage pipeline streaming unwrapping (`'code' | iex | iex`) integrated with `src/pipeline_optimizer.py`.
+  - Multi-statement ScriptBlock flattening with statement delimiter separation.
+  - Dynamic download cradle retention: retains single network download cradles (`iex (New-Object Net.WebClient).DownloadString(...)`) while peeling redundant nested execution wrappers (`iex (iex (...))`).
+  - Cryptographic cycle and loop guard: tracks SHA-256 hashes of intermediate payloads (`seen_hashes`) with hard nesting depth limit (`MAX_DEPTH = 30`).
+  - Forensic layer telemetry model: `IEXLayer` and `IEXUnwrapResult` tracking step index, invocation vector, method name, unwrapped payload code, and SHA-256 hash.
+  - Public facade utility functions: `unwrap_iex()`, `trace_iex_layers()`, and `peel_iex_string()`.
+- CLI enhancements (`src/cli.py`):
+  - Added `--trace-iex`: exports detailed JSON execution layer telemetry with invocation vectors, step indices, and hashes.
+  - Added `--no-unwrap-iex`: allows disabling IEX peeling pass for raw forensic execution graph inspection.
+- Integrated multi-pass normalization passes (`src/normalizer.py`, `src/deobfuscator_engine.py`):
+  - Pass 11: IEX wrapper detection and peeling.
+  - Pass 12: Cascading normalization over peeled script blocks and nested statements.
+- Unit and integration tests (`tests/test_iex_unwrapper.py`):
+  - 27 new tests covering direct invocations, call operators, ScriptBlock APIs, multi-stage pipelines, cycle detection, download cradle retention, format strings, XOR loops, and telemetry serialization (total 317 tests passing with 100% success rate).
+
+### Changed
+- CLI encoded command unwrapper regex hardened (`src/encoded_command_unwrapper.py`): balanced quote groups prevent stripping opening quotes when powershell CLI strings are enclosed in string arguments.
+- Benchmark sample indicators updated (`src/benchmark_corpus.py`): ground-truth recall indicators updated to reflect peeled inner commands for peeled samples.
+
 ## [0.12.0] - 2026-10-14
 
 ### Added

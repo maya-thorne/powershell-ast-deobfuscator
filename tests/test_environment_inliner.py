@@ -31,7 +31,7 @@ class TestPowerShellEnvironmentInliner(unittest.TestCase):
 
     def _normalize(self, code: str) -> str:
         ast = self._parse(code)
-        normalizer = PowerShellNormalizer()
+        normalizer = PowerShellNormalizer(unwrap_iex=False)
         norm_ast = normalizer.normalize(ast)
         return normalizer.to_source(norm_ast)
 
@@ -137,7 +137,7 @@ class TestPowerShellEnvironmentInliner(unittest.TestCase):
         self.assertEqual(res, r'"Target: C:\Windows\system32"')
 
     def test_multi_pass_deobfuscation_end_to_end(self):
-        engine = PowerShellDeobfuscator()
+        engine = PowerShellDeobfuscator(unwrap_iex=False)
         payload = (
             "$fn = ($env:COMSPEC[4, 15, 25] -join ''); "
             "& $fn ('{1}{0}' -f 'alc.exe', 'c')"

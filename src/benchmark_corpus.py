@@ -53,7 +53,7 @@ _BENCHMARK_CORPUS: List[CorpusSample] = [
         category="String Concat & Backticks",
         description="Obfuscates Invoke-Expression and Get-Process using inline backtick escape evasion.",
         obfuscated_script="In`voke-Exp`ression 'Get-Pro`cess'",
-        expected_indicators=["Invoke-Expression", "Get-Process"],
+        expected_indicators=["Get-Process"],
         target_properties={
             "technique": "T1059.001",
             "evasion": "backtick_insertion",
@@ -86,7 +86,7 @@ _BENCHMARK_CORPUS: List[CorpusSample] = [
         category="String Concat & Backticks",
         description="Executes payload via backtick-fragmented Start-Process with string concatenated parameters.",
         obfuscated_script="& ('In' + 'voke-Exp`ression') ('St`art-Pro' + 'cess' + ' ' + 'powershell.exe')",
-        expected_indicators=["Invoke-Expression", "powershell.exe"],
+        expected_indicators=["Start-Process", "powershell.exe"],
         target_properties={
             "technique": "T1059.001",
             "evasion": "call_operator_backticks",
@@ -321,7 +321,7 @@ _BENCHMARK_CORPUS: List[CorpusSample] = [
         category="Pipeline & ScriptBlock Control Flow",
         description="Pipes command string directly into Invoke-Expression alias.",
         obfuscated_script="'Get-Service' | iex",
-        expected_indicators=["iex 'Get-Service'"],
+        expected_indicators=["Get-Service"],
         target_properties={
             "technique": "T1059.001",
             "evasion": "pipeline_command_pipe",
@@ -364,7 +364,7 @@ _BENCHMARK_CORPUS: List[CorpusSample] = [
         category="Recursive Base64 Encoded Commands",
         description="Standard powershell.exe -enc payload containing Invoke-Expression whoami.",
         obfuscated_script=f"powershell.exe -enc {_B64_WHOAMI}",
-        expected_indicators=["Invoke-Expression", "whoami"],
+        expected_indicators=["whoami"],
         target_properties={
             "technique": "T1059.001",
             "evasion": "base64_encoded_command",
@@ -377,7 +377,7 @@ _BENCHMARK_CORPUS: List[CorpusSample] = [
         category="Recursive Base64 Encoded Commands",
         description="Multi-stage nested Base64 encoded payload requiring multi-pass unraveling.",
         obfuscated_script=f"powershell.exe -EncodedCommand {_B64_NESTED}",
-        expected_indicators=["Invoke-Expression", "whoami"],
+        expected_indicators=["whoami"],
         target_properties={
             "technique": "T1059.001",
             "evasion": "nested_base64_recursion",

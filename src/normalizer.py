@@ -40,6 +40,7 @@ from .bitwise_folding_engine import PowerShellBitwiseFoldingEngine
 from .casing_normalizer import PowerShellCasingNormalizer
 from .encoded_command_unwrapper import PowerShellEncodedCommandUnwrapper
 from .environment_inliner import PowerShellEnvironmentInliner
+from .iex_unwrapper import PowerShellIEXUnwrapper
 from .pipeline_optimizer import PowerShellPipelineOptimizer
 from .reflection_unwrapper import PowerShellReflectionUnwrapper
 from .scriptblock_simplifier import PowerShellScriptBlockSimplifier
@@ -56,7 +57,7 @@ class PowerShellNormalizer:
     and ExecutionContext properties, resolves SecureString unboxing patterns,
     type accelerators, char/byte casts, reflection unboxing, pipeline stages,
     control flow branches, unwraps recursive Base64 encoded commands,
-    and strips backtick evasion artifacts.
+    peels nested IEX execution wrappers, and strips backtick evasion artifacts.
     """
 
     def __init__(
@@ -65,10 +66,12 @@ class PowerShellNormalizer:
         env: Optional[Dict[str, str]] = None,
         unwrap_subexpr: bool = True,
         normalize_casing: bool = True,
+        unwrap_iex: bool = True,
     ):
         self.symbols = symbols if symbols is not None else {}
         self.unwrap_subexpr = unwrap_subexpr
         self.normalize_casing = normalize_casing
+        self.unwrap_iex = unwrap_iex
         self.enc_unwrapper = PowerShellEncodedCommandUnwrapper(symbols=self.symbols)
         self.env_inliner = PowerShellEnvironmentInliner(symbols=self.symbols, env=env)
         self.sec_reducer = PowerShellSecureStringReducer(symbols=self.symbols)
@@ -79,6 +82,7 @@ class PowerShellNormalizer:
         self.pipe_optimizer = PowerShellPipelineOptimizer(symbols=self.symbols)
         self.sb_simplifier = PowerShellScriptBlockSimplifier(symbols=self.symbols)
         self.subexpr_unwrapper = PowerShellSubexpressionUnwrapper(symbols=self.symbols)
+        self.iex_unwrapper = PowerShellIEXUnwrapper(symbols=self.symbols, unwrap_iex=self.unwrap_iex)
         self.casing_normalizer = PowerShellCasingNormalizer(symbols=self.symbols)
 
     def normalize(self, node: ASTNode) -> ASTNode:
@@ -105,7 +109,10 @@ class PowerShellNormalizer:
             node = self.subexpr_unwrapper.unwrap(node)
         # Pass 10: Canonical AST normalizations (folding, backticks)
         node = self.visit(node)
-        # Pass 11: Cascading convergence passes
+        # Pass 11: IEX wrapper tracking & peeling (iex, Invoke-Expression, pipelines)
+        if self.unwrap_iex:
+            node = self.iex_unwrapper.unwrap(node)
+        # Pass 12: Cascading convergence passes
         node = self.enc_unwrapper.unwrap_ast(node)
         if self.unwrap_subexpr:
             node = self.subexpr_unwrapper.unwrap(node)
@@ -117,9 +124,11 @@ class PowerShellNormalizer:
         node = self.env_inliner.inline(node)
         node = self.refl_unwrapper.unwrap(node)
         node = self.sec_reducer.reduce(node)
+        if self.unwrap_iex:
+            node = self.iex_unwrapper.unwrap(node)
         if self.unwrap_subexpr:
             node = self.subexpr_unwrapper.unwrap(node)
-        # Pass 12: Canonical casing normalization
+        # Pass 13: Canonical casing normalization
         if self.normalize_casing:
             node = self.casing_normalizer.normalize(node)
         return node
@@ -208,7 +217,13 @@ class PowerShellNormalizer:
         return node
 
     def visit_script_block(self, node: ScriptBlockNode) -> ScriptBlockNode:
-        norm_stmts = [self.visit(s) for s in node.statements]
+        norm_stmts: List[ASTNode] = []
+        for s in node.statements:
+            norm_s = self.visit(s)
+            if isinstance(norm_s, ScriptBlockNode) and not node.is_nested:
+                norm_stmts.extend(norm_s.statements)
+            else:
+                norm_stmts.append(norm_s)
         return ScriptBlockNode(statements=norm_stmts)
 
     def visit_pipeline(self, node: PipelineNode) -> ASTNode:

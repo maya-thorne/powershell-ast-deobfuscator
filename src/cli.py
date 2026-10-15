@@ -99,6 +99,18 @@ def main() -> None:
         help="Extract and print unique canonical remote payload URLs (one per line)",
     )
     parser.add_argument(
+        "--trace-iex",
+        action="store_true",
+        help="Extract and dump all recursive IEX (Invoke-Expression) wrapper layers as structured JSON",
+    )
+    parser.add_argument(
+        "--no-unwrap-iex",
+        dest="unwrap_iex",
+        action="store_false",
+        default=True,
+        help="Disable automatic IEX wrapper peeling",
+    )
+    parser.add_argument(
         "--benchmark",
         action="store_true",
         help="Execute automated deobfuscation accuracy benchmark across 30-sample corpus",
@@ -306,10 +318,38 @@ def main() -> None:
             print(output_text)
         return
 
-    # 5. Default: Full deobfuscation engine
+    # 5. IEX wrapper layer forensic telemetry dump
+    if args.trace_iex:
+        engine = PowerShellDeobfuscator(
+            unwrap_subexpr=args.unwrap_subexpr,
+            normalize_casing=args.normalize_casing,
+            unwrap_iex=True,
+        )
+        deobf_script = engine.deobfuscate(script_text)
+        iex_layers = [l.to_dict() for l in engine.last_iex_layers]
+        output_text = json.dumps(
+            {
+                "total_layers": len(iex_layers),
+                "is_peeled": len(iex_layers) > 0,
+                "layers": iex_layers,
+                "final_script": deobf_script,
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as f:
+                f.write(output_text + "\n")
+            print(f"[+] IEX trace saved to: {args.output}")
+        else:
+            print(output_text)
+        return
+
+    # 6. Default: Full deobfuscation engine
     engine = PowerShellDeobfuscator(
         unwrap_subexpr=args.unwrap_subexpr,
         normalize_casing=args.normalize_casing,
+        unwrap_iex=args.unwrap_iex,
     )
     result = engine.deobfuscate(script_text)
 

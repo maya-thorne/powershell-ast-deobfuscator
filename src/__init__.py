@@ -81,8 +81,16 @@ from .webclient_tracer import (
     trace_webclient,
 )
 from .xor_loop_decryptor import PowerShellXorLoopDecryptor
+from .iex_unwrapper import (
+    IEXLayer,
+    IEXUnwrapResult,
+    PowerShellIEXUnwrapper,
+    peel_iex_string,
+    trace_iex_layers,
+    unwrap_iex,
+)
 
-__version__ = "0.12.0"
+__version__ = "0.13.0"
 __all__ = [
     "TokenType",
     "Token",
@@ -98,6 +106,12 @@ __all__ = [
     "PowerShellScriptBlockSimplifier",
     "PowerShellSubexpressionUnwrapper",
     "PowerShellCasingNormalizer",
+    "PowerShellIEXUnwrapper",
+    "IEXLayer",
+    "IEXUnwrapResult",
+    "unwrap_iex",
+    "trace_iex_layers",
+    "peel_iex_string",
     "PowerShellWebClientTracer",
     "RemotePayloadTarget",
     "trace_webclient",

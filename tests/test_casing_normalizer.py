@@ -17,8 +17,8 @@ class TestPowerShellCasingNormalizer(unittest.TestCase):
     """Test suite for casing normalization of PowerShell and .NET AST symbols."""
 
     def setUp(self):
-        self.normalizer = PowerShellNormalizer()
-        self.deobfuscator = PowerShellDeobfuscator()
+        self.normalizer = PowerShellNormalizer(unwrap_iex=False)
+        self.deobfuscator = PowerShellDeobfuscator(unwrap_iex=False)
 
     def _parse_and_normalize(self, code: str) -> str:
         tokens = PowerShellLexer(code).tokenize()

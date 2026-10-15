@@ -21,7 +21,7 @@ class TestScriptBlockSimplifier(unittest.TestCase):
     def _parse_and_simplify(self, code: str) -> str:
         tokens = PowerShellLexer(code).tokenize()
         ast = PowerShellParser(tokens).parse()
-        normalizer = PowerShellNormalizer()
+        normalizer = PowerShellNormalizer(unwrap_iex=False)
         norm_ast = normalizer.normalize(ast)
         return normalizer.to_source(norm_ast)
 
@@ -110,7 +110,7 @@ class TestScriptBlockSimplifier(unittest.TestCase):
         self.assertEqual(result, "$x = 10\n$y = 20")
 
     def test_complex_end_to_end_decoy_unwrapping(self):
-        engine = PowerShellDeobfuscator()
+        engine = PowerShellDeobfuscator(unwrap_iex=False)
         obfuscated = """
         if ($true) {
             & { (105, 101, 120 | % { [char]$_ }) -join '' } 'calc.exe'

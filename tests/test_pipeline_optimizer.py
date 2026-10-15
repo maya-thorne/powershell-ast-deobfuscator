@@ -21,7 +21,7 @@ class TestPipelineOptimizer(unittest.TestCase):
     def _parse_and_optimize(self, code: str) -> str:
         tokens = PowerShellLexer(code).tokenize()
         ast = PowerShellParser(tokens).parse()
-        normalizer = PowerShellNormalizer()
+        normalizer = PowerShellNormalizer(unwrap_iex=False)
         norm_ast = normalizer.normalize(ast)
         return normalizer.to_source(norm_ast)
 
@@ -125,7 +125,7 @@ class TestPipelineOptimizer(unittest.TestCase):
         self.assertEqual(result, "@('d', 'e')")
 
     def test_end_to_end_pipeline_deobfuscation(self):
-        engine = PowerShellDeobfuscator()
+        engine = PowerShellDeobfuscator(unwrap_iex=False)
         obfuscated = "((105, 101, 120 | % { [char]$_ }) -join '') | iex"
         result = engine.deobfuscate(obfuscated)
         self.assertEqual(result, "iex 'iex'")

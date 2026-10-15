@@ -19,12 +19,12 @@ This document tracks shipped capabilities and future engineering milestones for 
 - [x] **DownloadString & WebClient API Remote Payload Carving** — Compiler-grade AST static tracing and heuristic URL carving for WebClient, HttpClient, HttpWebRequest, and download cmdlets (`Invoke-WebRequest`, `iwr`, `Invoke-RestMethod`, `irm`, `Start-BitsTransfer`), resolving obfuscated decimal/DWORD, hexadecimal, octal, and dotted IPs, tracking headers and proxies, detecting download cradles (`iex_download_string`, `file_download_execute`, `in_memory_assembly_load`), and CLI integration (`--carve-urls`, `--urls`) (`src/webclient_tracer.py`).
 - [x] **Arithmetic & Bitwise Operator Static Folding & XOR Loop Decryptor** — Compiler-grade static constant evaluation for bitwise (`-bxor`, `-band`, `-bor`, `-shl`, `-shr`, `-bnot`), arithmetic (`+`, `-`, `*`, `/`, `%`), comparisons (`-eq`, `-ne`, `-gt`, `-ge`, `-lt`, `-le`), and pipeline/imperative XOR loop static decryption engine with single/multi-byte key recovery, encoding wrappers, and zeroize memory wiping (`src/bitwise_folding_engine.py`, `src/xor_loop_decryptor.py`).
 - [x] **Recursive IEX Unwrapper & Execution Tree Flattener** — Multi-layered `iex(iex(...))` peeling across direct cmdlets, dot/call operators, ScriptBlock API invocations (`[scriptblock]::Create($code).Invoke()`), `$ExecutionContext.InvokeCommand.InvokeScript`, multi-stage pipeline streaming (`... | iex | iex`), dynamic download cradle retention, cycle detection via SHA-256 hash tracking, and layer extraction telemetry (`--trace-iex`) (`src/iex_unwrapper.py`).
+- [x] **AMSI & ETW Bypass Static Pattern Detection & Neutralization** — Comprehensive detection ruleset and forensic analyzer for in-memory patching (`AmsiScanBuffer`, `EtwEventWrite`, `AmsiInitialize`, `WLDP`), reflection tampering (`amsiInitFailed`, `PSEtwLogProvider.etwProvider`, `m_enabled`, `cachedGroupPolicySettings`), surgical comment-based and strip-based neutralization, and CLI integration (`--detect-amsi`, `--neutralize-amsi`, `--amsi-signatures`) (`src/amsi_etw_signatures.py`, `src/statement_span_parser.py`, `src/amsi_etw_sanitizer.py`, `src/amsi_etw_detector.py`).
 
 ---
 
 ## Planned Milestones
 
-- [ ] **AMSI & ETW Bypass Static Pattern Detection** — Signature detection and automatic deobfuscation of AmsiScanBuffer patch loops.
 - [ ] **Runspace Pool & Multi-Thread Pipeline Decompiler** — Static decomposition of runspace-isolated background jobs.
 - [ ] **COM Object CLSID & ProgID Inlining Engine** — Static resolution of WScript.Shell, Shell.Application, and ADODB stream obfuscation patterns.
 - [ ] **Clipboard & Keystroke In-Memory Buffer Tracking** — Static pattern tracking and carving for API keystroke capture routines.
@@ -46,4 +46,8 @@ This document tracks shipped capabilities and future engineering milestones for 
 - [ ] **PowerShell 7.4+ Pipeline Chain Operator (&& / ||) Control Flow Normalizer** — Static analysis and conditional branch simplification for short-circuit pipeline chains.
 - [ ] **In-Memory .NET Delegate & Reflection Dynamic Invocation Tracker** — Static recovery of obfuscated delegate bindings and function pointer invocations.
 - [ ] **AMSI Context Structure Corruption Detector & Static Heuristic Analyzer** — Static detection and pattern matching for in-memory AmsiContext corruption evasion.
+- [ ] **AMSI Provider Dynamic Unregistration & COM Registry Evasion Tracker** — Static detection of provider unregistration routines and CLSID hijacking.
+- [ ] **ETW Event Filter Deserialization & Event Tracing Session Nullification Analyzer** — Static verification of Event Tracing session filters and custom TraceEventProvider suppression.
+- [ ] **PowerShell JEA Role Capability Tampering Static Detector** — Static analysis of role capability definition files and delegated administrative constraint tampering.
+
 

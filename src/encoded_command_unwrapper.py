@@ -315,7 +315,11 @@ class PowerShellEncodedCommandUnwrapper:
             (?P<match_all>
                 (?P<prefix>
                     (?:(?:&|\.)\s+)?
-                    (?:['"]?(?:powershell(?:\.exe)?|pwsh(?:\.exe)?|cmd(?:\.exe)?\s*/c\s*powershell(?:\.exe)?)['"]?\s+)
+                    (?:
+                        '(?:powershell(?:\.exe)?|pwsh(?:\.exe)?|cmd(?:\.exe)?\s*/c\s*powershell(?:\.exe)?)'
+                        |"(?:powershell(?:\.exe)?|pwsh(?:\.exe)?|cmd(?:\.exe)?\s*/c\s*powershell(?:\.exe)?)"
+                        |(?:powershell(?:\.exe)?|pwsh(?:\.exe)?|cmd(?:\.exe)?\s*/c\s*powershell(?:\.exe)?)
+                    )\s+
                 )?
                 (?P<flags_before>
                     (?:

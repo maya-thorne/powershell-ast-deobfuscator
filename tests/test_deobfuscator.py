@@ -10,7 +10,7 @@ class TestPowerShellDeobfuscator(unittest.TestCase):
 
     def test_backtick_obfuscation_removal(self):
         code = "In`voke-Exp`ression 'Get-Process'"
-        result = self.engine.deobfuscate(code)
+        result = PowerShellDeobfuscator(unwrap_iex=False).deobfuscate(code)
         self.assertIn("Invoke-Expression", result)
 
     def test_nested_format_and_concat(self):

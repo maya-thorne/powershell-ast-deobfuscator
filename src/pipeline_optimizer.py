@@ -665,10 +665,8 @@ class PowerShellPipelineOptimizer:
         return None
 
     def _fold_iex_stage(self, source: ASTNode, stage: ASTNode) -> Optional[ASTNode]:
-        """Transforms 'calc.exe' | iex into canonical iex 'calc.exe'."""
-        if isinstance(source, (StringLiteralNode, ParenthesizedExpressionNode, IdentifierNode)):
-            return CommandNode(
-                target=IdentifierNode(name="iex"),
-                arguments=[source],
-            )
-        return None
+        """Transforms source | iex into canonical iex source."""
+        return CommandNode(
+            target=IdentifierNode(name="iex"),
+            arguments=[source],
+        )

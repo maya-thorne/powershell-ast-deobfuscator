@@ -25,8 +25,8 @@ class TestPowerShellSubexpressionUnwrapper(unittest.TestCase):
 
     def setUp(self):
         self.unwrapper = PowerShellSubexpressionUnwrapper()
-        self.normalizer = PowerShellNormalizer()
-        self.deobfuscator = PowerShellDeobfuscator()
+        self.normalizer = PowerShellNormalizer(unwrap_iex=False)
+        self.deobfuscator = PowerShellDeobfuscator(unwrap_iex=False)
 
     def _parse_and_unwrap(self, code: str) -> str:
         tokens = PowerShellLexer(code).tokenize()

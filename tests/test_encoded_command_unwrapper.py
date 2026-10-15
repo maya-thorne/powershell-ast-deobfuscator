@@ -312,7 +312,8 @@ class TestEndToEndDeobfuscationIntegration(unittest.TestCase):
         # Wrap in powershell -NoProfile -enc
         obfuscated_cmd = f"powershell.exe -NoProfile -enc {b64}"
 
-        result = self.engine.deobfuscate(obfuscated_cmd)
+        engine = PowerShellDeobfuscator(unwrap_iex=False)
+        result = engine.deobfuscate(obfuscated_cmd)
         # Verify that Base64 unwrapping + backtick stripping + format folding all happened!
         self.assertIn("Invoke-Expression", result)
         self.assertIn("Get-Process", result)

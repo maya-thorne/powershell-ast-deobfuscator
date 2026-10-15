@@ -130,7 +130,7 @@ class TestXorLoopDecryptor(unittest.TestCase):
         # Emulates classic malware cradle:
         # $bytes = @(80, 83); $cmd = ($bytes | % { [char]($_ -bxor 0) }) -join ''; iex $cmd
         script = "$bytes = @(105, 101, 120); $cmd = ($bytes | % { [char]($_ -bxor 0x00) }) -join ''; & $cmd 'calc.exe'"
-        engine = PowerShellDeobfuscator()
+        engine = PowerShellDeobfuscator(unwrap_iex=False)
         deobf = engine.deobfuscate(script)
         self.assertIn("iex 'calc.exe'", deobf)
 

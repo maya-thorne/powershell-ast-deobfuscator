@@ -7,6 +7,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 from .encoded_command_unwrapper import EncodedCommandLayer, PowerShellEncodedCommandUnwrapper
+from .iex_unwrapper import IEXLayer
 from .lexer import PowerShellLexer
 from .normalizer import PowerShellNormalizer
 from .parser import PowerShellParser
@@ -16,7 +17,8 @@ class PowerShellDeobfuscator:
     """
     Multi-pass deobfuscation engine for obfuscated PowerShell scripts.
     Executes AST normalization, cryptographic unboxing, reflection unwrapping,
-    pipeline simplification, and recursive Base64 encoded command unraveling.
+    pipeline simplification, recursive Base64 encoded command unraveling,
+    and recursive IEX (Invoke-Expression) wrapper peeling.
     """
 
     MAX_ITERATIONS = 10
@@ -26,12 +28,15 @@ class PowerShellDeobfuscator:
         symbols: Optional[Dict[str, Any]] = None,
         unwrap_subexpr: bool = True,
         normalize_casing: bool = True,
+        unwrap_iex: bool = True,
     ):
         self.symbols = symbols if symbols is not None else {}
         self.unwrap_subexpr = unwrap_subexpr
         self.normalize_casing = normalize_casing
+        self.unwrap_iex = unwrap_iex
         self.encoded_unwrapper = PowerShellEncodedCommandUnwrapper(symbols=self.symbols)
         self.last_layers: List[EncodedCommandLayer] = []
+        self.last_iex_layers: List[IEXLayer] = []
 
     def deobfuscate(self, script: str) -> str:
         """
@@ -40,6 +45,7 @@ class PowerShellDeobfuscator:
         current = script.strip()
         iteration = 0
         self.last_layers = []
+        self.last_iex_layers = []
 
         while iteration < self.MAX_ITERATIONS:
             iteration += 1
@@ -61,8 +67,11 @@ class PowerShellDeobfuscator:
                     symbols=self.symbols,
                     unwrap_subexpr=self.unwrap_subexpr,
                     normalize_casing=self.normalize_casing,
+                    unwrap_iex=self.unwrap_iex,
                 )
                 norm_ast = normalizer.normalize(ast)
+                if normalizer.iex_unwrapper.last_layers:
+                    self.last_iex_layers.extend(normalizer.iex_unwrapper.last_layers)
                 current = normalizer.to_source(norm_ast)
             except Exception:
                 # If AST parsing fails on partial fragment, retain current representation

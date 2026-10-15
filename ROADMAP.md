@@ -18,12 +18,12 @@ This document tracks shipped capabilities and future engineering milestones for 
 - [x] **Automated Deobfuscation Benchmark Runner & Accuracy Harness** — Curated 30-sample obfuscated PowerShell corpus across 10 evasion categories, multi-dimensional fidelity telemetry (Shannon entropy, artifact reduction, ground-truth indicator recall, AST syntax validity), composite fidelity scoring (0-100%), ASCII/JSON/Markdown report generation, and CLI benchmark execution flags (`--benchmark`, `--benchmark-sample`, `--benchmark-category`, `--benchmark-report`, `--benchmark-format`) (`src/benchmark.py`, `src/benchmark_corpus.py`, `src/benchmark_metrics.py`, `src/benchmark_runner.py`).
 - [x] **DownloadString & WebClient API Remote Payload Carving** — Compiler-grade AST static tracing and heuristic URL carving for WebClient, HttpClient, HttpWebRequest, and download cmdlets (`Invoke-WebRequest`, `iwr`, `Invoke-RestMethod`, `irm`, `Start-BitsTransfer`), resolving obfuscated decimal/DWORD, hexadecimal, octal, and dotted IPs, tracking headers and proxies, detecting download cradles (`iex_download_string`, `file_download_execute`, `in_memory_assembly_load`), and CLI integration (`--carve-urls`, `--urls`) (`src/webclient_tracer.py`).
 - [x] **Arithmetic & Bitwise Operator Static Folding & XOR Loop Decryptor** — Compiler-grade static constant evaluation for bitwise (`-bxor`, `-band`, `-bor`, `-shl`, `-shr`, `-bnot`), arithmetic (`+`, `-`, `*`, `/`, `%`), comparisons (`-eq`, `-ne`, `-gt`, `-ge`, `-lt`, `-le`), and pipeline/imperative XOR loop static decryption engine with single/multi-byte key recovery, encoding wrappers, and zeroize memory wiping (`src/bitwise_folding_engine.py`, `src/xor_loop_decryptor.py`).
+- [x] **Recursive IEX Unwrapper & Execution Tree Flattener** — Multi-layered `iex(iex(...))` peeling across direct cmdlets, dot/call operators, ScriptBlock API invocations (`[scriptblock]::Create($code).Invoke()`), `$ExecutionContext.InvokeCommand.InvokeScript`, multi-stage pipeline streaming (`... | iex | iex`), dynamic download cradle retention, cycle detection via SHA-256 hash tracking, and layer extraction telemetry (`--trace-iex`) (`src/iex_unwrapper.py`).
 
 ---
 
 ## Planned Milestones
 
-- [ ] **Recursive IEX Unwrapper & Execution Tree Flattener** — Multi-layered `iex(iex(...))` peeling.
 - [ ] **AMSI & ETW Bypass Static Pattern Detection** — Signature detection and automatic deobfuscation of AmsiScanBuffer patch loops.
 - [ ] **Runspace Pool & Multi-Thread Pipeline Decompiler** — Static decomposition of runspace-isolated background jobs.
 - [ ] **COM Object CLSID & ProgID Inlining Engine** — Static resolution of WScript.Shell, Shell.Application, and ADODB stream obfuscation patterns.
@@ -43,3 +43,7 @@ This document tracks shipped capabilities and future engineering milestones for 
 - [ ] **PowerShell .NET P/Invoke & DllImport Native Windows API Resolver** — Static detection and signature extraction for kernel32/ntdll memory injection primitives.
 - [ ] **PowerShell Variable Scope Mangle & ExecutionContext Inliner** — Reverse tracking of execution path and calling context obfuscation.
 - [ ] **PowerShell AST-Based Control Flow Flattening (CFF) De-dispatcher** — State-machine-based switch-case and while loop dispatcher deobfuscation engine.
+- [ ] **PowerShell 7.4+ Pipeline Chain Operator (&& / ||) Control Flow Normalizer** — Static analysis and conditional branch simplification for short-circuit pipeline chains.
+- [ ] **In-Memory .NET Delegate & Reflection Dynamic Invocation Tracker** — Static recovery of obfuscated delegate bindings and function pointer invocations.
+- [ ] **AMSI Context Structure Corruption Detector & Static Heuristic Analyzer** — Static detection and pattern matching for in-memory AmsiContext corruption evasion.
+

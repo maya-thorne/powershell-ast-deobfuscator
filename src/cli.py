@@ -7,6 +7,8 @@ import json
 import os
 import sys
 
+from .amsi_etw_detector import PowerShellAmsiEtwDetector, detect_amsi_etw, neutralize_amsi_etw
+from .amsi_etw_signatures import BUILTIN_SIGNATURES, DEFAULT_RULESET
 from .ast_exporter import ASTExporter
 from .ast_visualizer import ASTVisualizer
 from .benchmark import (
@@ -111,6 +113,27 @@ def main() -> None:
         help="Disable automatic IEX wrapper peeling",
     )
     parser.add_argument(
+        "--detect-amsi",
+        action="store_true",
+        help="Detect AMSI and ETW bypass signatures and dump findings as structured JSON",
+    )
+    parser.add_argument(
+        "--neutralize-amsi",
+        action="store_true",
+        help="Neutralize and sanitize detected AMSI and ETW bypass code blocks",
+    )
+    parser.add_argument(
+        "--neutralize-mode",
+        choices=["comment", "strip", "invert"],
+        default="comment",
+        help="Sanitization mode for --neutralize-amsi: comment (default), strip, or invert",
+    )
+    parser.add_argument(
+        "--amsi-signatures",
+        action="store_true",
+        help="Dump all registered AMSI and ETW bypass detection signatures as structured JSON",
+    )
+    parser.add_argument(
         "--benchmark",
         action="store_true",
         help="Execute automated deobfuscation accuracy benchmark across 30-sample corpus",
@@ -168,6 +191,18 @@ def main() -> None:
             print(f"[+] Benchmark report ({args.benchmark_format}) saved to: {args.benchmark_report}")
         else:
             print(report_content)
+        return
+
+    # Handle AMSI/ETW signatures dump mode
+    if args.amsi_signatures:
+        signatures_data = [s.to_dict() for s in DEFAULT_RULESET.all_signatures()]
+        output_text = json.dumps(signatures_data, indent=2, ensure_ascii=False)
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as f:
+                f.write(output_text + "\n")
+            print(f"[+] AMSI/ETW signatures saved to: {args.output}")
+        else:
+            print(output_text)
         return
 
     # Check for missing input argument when not in benchmark mode
@@ -345,11 +380,52 @@ def main() -> None:
             print(output_text)
         return
 
-    # 6. Default: Full deobfuscation engine
+    # 6. AMSI & ETW bypass signature forensic dump
+    if args.detect_amsi:
+        detector = PowerShellAmsiEtwDetector()
+        findings = detector.detect(script_text)
+        engine = PowerShellDeobfuscator(
+            unwrap_subexpr=args.unwrap_subexpr,
+            normalize_casing=args.normalize_casing,
+            unwrap_iex=args.unwrap_iex,
+            detect_amsi_etw=True,
+        )
+        deobf_script = engine.deobfuscate(script_text)
+        deobf_findings = detector.detect(deobf_script)
+
+        all_findings = []
+        seen = set()
+        for f in findings + deobf_findings:
+            key = (f.signature_id, f.matched_text.strip())
+            if key not in seen:
+                seen.add(key)
+                all_findings.append(f)
+
+        output_text = json.dumps(
+            {
+                "has_bypass": len(all_findings) > 0,
+                "total_findings": len(all_findings),
+                "findings": [f.to_dict() for f in all_findings],
+                "deobfuscated_script": deobf_script,
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as f:
+                f.write(output_text + "\n")
+            print(f"[+] AMSI/ETW findings saved to: {args.output}")
+        else:
+            print(output_text)
+        return
+
+    # 7. Default: Full deobfuscation engine
     engine = PowerShellDeobfuscator(
         unwrap_subexpr=args.unwrap_subexpr,
         normalize_casing=args.normalize_casing,
         unwrap_iex=args.unwrap_iex,
+        neutralize_amsi_etw=args.neutralize_amsi,
+        neutralize_amsi_mode=args.neutralize_mode,
     )
     result = engine.deobfuscate(script_text)
 

@@ -89,8 +89,25 @@ from .iex_unwrapper import (
     trace_iex_layers,
     unwrap_iex,
 )
+from .amsi_etw_signatures import (
+    BUILTIN_SIGNATURES,
+    DEFAULT_RULESET,
+    AmsiEtwFinding,
+    AmsiEtwRuleSet,
+    BypassCategory,
+    BypassSeverity,
+    BypassSignature,
+    TargetSystem,
+)
+from .amsi_etw_detector import (
+    PowerShellAmsiEtwDetector,
+    SanitizationResult,
+    detect_amsi_etw,
+    neutralize_amsi_etw,
+)
+from .amsi_etw_sanitizer import AmsiEtwSanitizer
 
-__version__ = "0.13.0"
+__version__ = "0.14.0"
 __all__ = [
     "TokenType",
     "Token",
@@ -112,6 +129,19 @@ __all__ = [
     "unwrap_iex",
     "trace_iex_layers",
     "peel_iex_string",
+    "PowerShellAmsiEtwDetector",
+    "AmsiEtwSanitizer",
+    "SanitizationResult",
+    "detect_amsi_etw",
+    "neutralize_amsi_etw",
+    "BypassCategory",
+    "TargetSystem",
+    "BypassSeverity",
+    "BypassSignature",
+    "AmsiEtwFinding",
+    "AmsiEtwRuleSet",
+    "BUILTIN_SIGNATURES",
+    "DEFAULT_RULESET",
     "PowerShellWebClientTracer",
     "RemotePayloadTarget",
     "trace_webclient",

@@ -6,6 +6,8 @@ Iterates AST normalization passes until code convergence is achieved.
 import re
 from typing import Any, Dict, List, Optional
 
+from .amsi_etw_detector import PowerShellAmsiEtwDetector
+from .amsi_etw_signatures import AmsiEtwFinding
 from .encoded_command_unwrapper import EncodedCommandLayer, PowerShellEncodedCommandUnwrapper
 from .iex_unwrapper import IEXLayer
 from .lexer import PowerShellLexer
@@ -18,7 +20,7 @@ class PowerShellDeobfuscator:
     Multi-pass deobfuscation engine for obfuscated PowerShell scripts.
     Executes AST normalization, cryptographic unboxing, reflection unwrapping,
     pipeline simplification, recursive Base64 encoded command unraveling,
-    and recursive IEX (Invoke-Expression) wrapper peeling.
+    recursive IEX (Invoke-Expression) wrapper peeling, and AMSI/ETW bypass detection.
     """
 
     MAX_ITERATIONS = 10
@@ -29,14 +31,22 @@ class PowerShellDeobfuscator:
         unwrap_subexpr: bool = True,
         normalize_casing: bool = True,
         unwrap_iex: bool = True,
+        detect_amsi_etw: bool = True,
+        neutralize_amsi_etw: bool = False,
+        neutralize_amsi_mode: str = "comment",
     ):
         self.symbols = symbols if symbols is not None else {}
         self.unwrap_subexpr = unwrap_subexpr
         self.normalize_casing = normalize_casing
         self.unwrap_iex = unwrap_iex
+        self.detect_amsi_etw = detect_amsi_etw
+        self.neutralize_amsi_etw = neutralize_amsi_etw
+        self.neutralize_amsi_mode = neutralize_amsi_mode
         self.encoded_unwrapper = PowerShellEncodedCommandUnwrapper(symbols=self.symbols)
+        self.amsi_detector = PowerShellAmsiEtwDetector(symbols=self.symbols)
         self.last_layers: List[EncodedCommandLayer] = []
         self.last_iex_layers: List[IEXLayer] = []
+        self.last_amsi_etw_findings: List[AmsiEtwFinding] = []
 
     def deobfuscate(self, script: str) -> str:
         """
@@ -46,6 +56,7 @@ class PowerShellDeobfuscator:
         iteration = 0
         self.last_layers = []
         self.last_iex_layers = []
+        self.last_amsi_etw_findings = []
 
         while iteration < self.MAX_ITERATIONS:
             iteration += 1
@@ -82,6 +93,15 @@ class PowerShellDeobfuscator:
 
             if current == prev:
                 break
+
+        # Pass 4: AMSI & ETW bypass signature detection and optional neutralization
+        if self.detect_amsi_etw or self.neutralize_amsi_etw:
+            self.last_amsi_etw_findings = self.amsi_detector.detect(current)
+            if self.neutralize_amsi_etw and self.last_amsi_etw_findings:
+                current = self.amsi_detector.neutralize(
+                    current, mode=self.neutralize_amsi_mode
+                ).sanitized_script
+
 
         return current
 

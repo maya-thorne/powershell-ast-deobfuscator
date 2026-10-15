@@ -5,6 +5,28 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-10-15
+
+### Added
+- AMSI & ETW bypass signature detection and ruleset engine (`src/amsi_etw_signatures.py`):
+  - Structured categorization hierarchy: `BypassCategory` (MEMORY_PATCH, REFLECTION_TAMPERING, COM_HIJACK, CONTEXT_CORRUPTION, LOGGING_SUPPRESSION), `TargetSystem` (AMSI, ETW, WLDP, SCRIPT_LOGGING), and `BypassSeverity` (CRITICAL, HIGH, MEDIUM, LOW).
+  - Curated 10-rule detection catalog (`BUILTIN_SIGNATURES`, `DEFAULT_RULESET`) with MITRE ATT&CK mapping (`T1562.001 - Impair Defenses: Disable or Modify Tools`).
+  - Forensics telemetry models: `BypassSignature` and `AmsiEtwFinding` tracking signature ID, category, severity, target symbol, confidence score, and line numbers.
+- Compiler-grade bypass detector and neutralization engine (`src/amsi_etw_detector.py`):
+  - Memory patch detection: `AmsiScanBuffer` and `AmsiScanString` memory patches (VirtualProtect, Marshal.Copy, WriteProcessMemory, byte patterns 0xC3, 0xB8 0x57 0x00 0x07 0x80 0xC3, 0x31 0xC0 0xC3), `EtwEventWrite` memory patches (0xC3, 0xC2 0x14 0x00), `AmsiInitialize`/`AmsiOpenSession`, and `WLDP` dynamic code trust patches.
+  - Reflection tampering detection: `amsiInitFailed` forced to true, `PSEtwLogProvider.etwProvider` nullification, `EventProvider.m_enabled` disabled to 0, and `cachedGroupPolicySettings` dictionary tampering (ScriptBlockLogging silencing).
+  - Surgical sanitization and neutralization: supports comment wrapping (`mode="comment"`, `<# [NEUTRALIZED: ...] ... #>`), statement stripping (`mode="strip"`), and safe boolean inversion (`mode="invert"`) while preserving surrounding benign scripts.
+  - Convenience public facades: `detect_amsi_etw()` and `neutralize_amsi_etw()`.
+- Pipeline & CLI enhancements (`src/deobfuscator_engine.py`, `src/cli.py`):
+  - Added `detect_amsi_etw`, `neutralize_amsi_etw`, and `neutralize_amsi_mode` parameters to `PowerShellDeobfuscator`, exposing `last_amsi_etw_findings`.
+  - Added CLI flag `--detect-amsi`: exports structured JSON forensic findings across raw and deobfuscated payload variants.
+  - Added CLI flag `--neutralize-amsi`: enables in-place neutralization of detected bypass blocks during deobfuscation.
+  - Added CLI flag `--neutralize-mode`: configurable sanitization modes (`comment`, `strip`, `invert`).
+  - Added CLI flag `--amsi-signatures`: dumps all registered detection signatures in JSON format.
+- Unit and integration tests (`tests/test_amsi_etw_detector.py`):
+  - 52 comprehensive tests verifying signature queries, memory patch detection, reflection tampering detection, neutralization modes (comment, strip, invert), benign code and scriptblock preservation, braced variables and hashtable boundary integrity, if-else compound control flow handling, multiple write statement claiming, logging suppression dictionaries, idempotent neutralization, constant-folded AST detection, deobfuscator engine integration, adversarial chained bypasses, AST call chain traversal, and CLI execution (total 369 tests passing with 100% success rate).
+
+
 ## [0.13.0] - 2026-10-15
 
 ### Added

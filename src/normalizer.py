@@ -38,6 +38,7 @@ from .ast_nodes import (
 )
 from .bitwise_folding_engine import PowerShellBitwiseFoldingEngine
 from .casing_normalizer import PowerShellCasingNormalizer
+from .compression import PowerShellCompressionReducer
 from .encoded_command_unwrapper import PowerShellEncodedCommandUnwrapper
 from .environment_inliner import PowerShellEnvironmentInliner
 from .iex_unwrapper import PowerShellIEXUnwrapper
@@ -67,11 +68,13 @@ class PowerShellNormalizer:
         unwrap_subexpr: bool = True,
         normalize_casing: bool = True,
         unwrap_iex: bool = True,
+        decompress_streams: bool = True,
     ):
         self.symbols = symbols if symbols is not None else {}
         self.unwrap_subexpr = unwrap_subexpr
         self.normalize_casing = normalize_casing
         self.unwrap_iex = unwrap_iex
+        self.decompress_streams = decompress_streams
         self.enc_unwrapper = PowerShellEncodedCommandUnwrapper(symbols=self.symbols)
         self.env_inliner = PowerShellEnvironmentInliner(symbols=self.symbols, env=env)
         self.sec_reducer = PowerShellSecureStringReducer(symbols=self.symbols)
@@ -83,6 +86,7 @@ class PowerShellNormalizer:
         self.sb_simplifier = PowerShellScriptBlockSimplifier(symbols=self.symbols)
         self.subexpr_unwrapper = PowerShellSubexpressionUnwrapper(symbols=self.symbols)
         self.iex_unwrapper = PowerShellIEXUnwrapper(symbols=self.symbols, unwrap_iex=self.unwrap_iex)
+        self.comp_reducer = PowerShellCompressionReducer(symbols=self.symbols)
         self.casing_normalizer = PowerShellCasingNormalizer(symbols=self.symbols)
 
     def normalize(self, node: ASTNode) -> ASTNode:
@@ -96,26 +100,31 @@ class PowerShellNormalizer:
         node = self.bitwise_folder.fold(node)
         # Pass 4: Static XOR loop decryption and byte transform evaluation
         node = self.xor_decryptor.decrypt(node)
-        # Pass 5: Resolve type accelerators, char/byte casts & array shuffling
+        # Pass 5: Resolve in-memory compressed streams (GzipStream, DeflateStream, BrotliStream)
+        if self.decompress_streams:
+            node = self.comp_reducer.reduce(node)
+        # Pass 6: Resolve type accelerators, char/byte casts & array shuffling
         node = self.type_resolver.resolve(node)
-        # Pass 6: Reflection & dynamic member unwrapping
+        # Pass 7: Reflection & dynamic member unwrapping
         node = self.refl_unwrapper.unwrap(node)
-        # Pass 7: Pipeline stage optimization (| %, | select, | where)
+        # Pass 8: Pipeline stage optimization (| %, | select, | where)
         node = self.pipe_optimizer.optimize(node)
-        # Pass 8: ScriptBlock & control flow simplification (& { ... }, if ($true))
+        # Pass 9: ScriptBlock & control flow simplification (& { ... }, if ($true))
         node = self.sb_simplifier.simplify(node)
-        # Pass 9: Subexpression unwrapping ($(...))
+        # Pass 10: Subexpression unwrapping ($(...))
         if self.unwrap_subexpr:
             node = self.subexpr_unwrapper.unwrap(node)
-        # Pass 10: Canonical AST normalizations (folding, backticks)
+        # Pass 11: Canonical AST normalizations (folding, backticks)
         node = self.visit(node)
-        # Pass 11: IEX wrapper tracking & peeling (iex, Invoke-Expression, pipelines)
+        # Pass 12: IEX wrapper tracking & peeling (iex, Invoke-Expression, pipelines)
         if self.unwrap_iex:
             node = self.iex_unwrapper.unwrap(node)
-        # Pass 12: Cascading convergence passes
+        # Pass 13: Cascading convergence passes
         node = self.enc_unwrapper.unwrap_ast(node)
         if self.unwrap_subexpr:
             node = self.subexpr_unwrapper.unwrap(node)
+        if self.decompress_streams:
+            node = self.comp_reducer.reduce(node)
         node = self.bitwise_folder.fold(node)
         node = self.xor_decryptor.decrypt(node)
         node = self.pipe_optimizer.optimize(node)
@@ -128,7 +137,7 @@ class PowerShellNormalizer:
             node = self.iex_unwrapper.unwrap(node)
         if self.unwrap_subexpr:
             node = self.subexpr_unwrapper.unwrap(node)
-        # Pass 13: Canonical casing normalization
+        # Pass 14: Canonical casing normalization
         if self.normalize_casing:
             node = self.casing_normalizer.normalize(node)
         return node

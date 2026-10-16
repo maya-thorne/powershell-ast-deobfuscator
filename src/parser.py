@@ -354,6 +354,9 @@ class PowerShellParser:
         return left
 
     def parse_unary_expression(self) -> ASTNode:
+        if self.match(TokenType.COMMA):
+            operand = self.parse_unary_expression()
+            return ArrayLiteralNode(elements=[operand])
         if self.match(TokenType.OP_JOIN):
             operand = self.parse_unary_expression()
             return UnaryOpNode(operator="-join", operand=operand)

@@ -5,6 +5,41 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-10-16
+
+### Added
+- In-memory compressed stream deobfuscation and static AST reduction engine:
+  - Stream decompression data models and telemetry definitions (`src/compression_models.py`):
+    - Multi-algorithm enumeration: `CompressionType` (`GZIP`, `DEFLATE`, `BROTLI`, `UNKNOWN`).
+    - Character encoding classifications: `StreamEncoding` (`UTF8`, `UTF16LE`, `UTF16BE`, `ASCII`, `LATIN1`, `AUTO`).
+    - Forensic layer telemetry: `DecompressedStreamLayer` recording depth, compression ratio, byte sizes, entropy shifts, and decompressed payloads.
+    - Aggregated result carrier: `StreamDecompressionResult` tracking total unboxed stream layers and execution flags.
+  - Core byte decompressor and encoding heuristics (`src/compression_decompressor.py`):
+    - Raw RFC 1951 DEFLATE decompression via `zlib.decompress(data, -zlib.MAX_WBITS)` handling native .NET `DeflateStream` outputs without zlib headers or checksums.
+    - Standard RFC 1952 GZIP stream decompression via `gzip.decompress()` and `zlib.decompress(data, zlib.MAX_WBITS | 16)`.
+    - Zlib-wrapped RFC 1950 DEFLATE stream decompression via `zlib.decompress(data, zlib.MAX_WBITS)`.
+    - Optional RFC 7932 Brotli stream decompression with graceful fallback when `brotli` runtime extensions are absent.
+    - Multi-encoding heuristics detecting UTF-8 / UTF-16LE / UTF-16BE byte order marks (BOMs), wide-character null byte alternation patterns, and lossless Latin-1 fallback.
+    - Memory scrubbing (`zeroize_buffer`) wiping sensitive raw and decompressed byte buffers.
+  - AST stream reducer and pattern unwrapper (`src/compression_reducer.py`):
+    - Unboxing of nested one-liner constructors: `(New-Object IO.StreamReader(New-Object IO.Compression.GZipStream(New-Object IO.MemoryStream(,[Convert]::FromBase64String('...')), ...))).ReadToEnd()` -> `StringLiteralNode`.
+    - Unboxing of .NET static constructor syntax: `[IO.StreamReader]::new([IO.Compression.GZipStream]::new([IO.MemoryStream]::new([Convert]::FromBase64String('...')))).ReadToEnd()`.
+    - Multi-step variable tracking propagating streams across `$data`, `$bytes`, `$ms`, `$gz`, `$sr`, and `$script` assignment chains.
+    - MemoryStream copying (`$gz.CopyTo($out)`) and byte array extraction (`$out.ToArray()`, `[System.Text.Encoding]::UTF8.GetString(...)`).
+    - Pure-Python regex and pattern fallback scanner (`unwrap_text()`) for unparsed or fragmented scripts.
+  - Unified public facade (`src/compression.py`):
+    - Exposes `PowerShellCompressionReducer`, `decompress_stream_bytes`, `decode_stream_bytes`, `decompress_stream_payload`, and telemetry models.
+  - Parser support for PowerShell unary comma operator (`src/parser.py`):
+    - Enhanced `parse_unary_expression()` to cleanly parse unary comma array creation (`,$bytes`, `(,[Convert]...)`) into `ArrayLiteralNode`.
+  - Multi-pass fixed-point engine integration (`src/deobfuscator_engine.py`, `src/normalizer.py`):
+    - Integrated stream decompression pass into `PowerShellDeobfuscator` loop and `PowerShellNormalizer`.
+    - Exposed `last_compression_layers` telemetry on `PowerShellDeobfuscator`.
+- CLI stream forensics flags (`src/cli.py`):
+  - Added `--decompress-streams` (default True) and `--no-decompress-streams`.
+  - Added `--trace-streams`: outputs detailed forensic JSON telemetry of all detected and decompressed stream layers.
+- Comprehensive unit and integration test coverage (`tests/test_compression_decompressor.py`):
+  - 22 new tests verifying raw byte decompression, multi-encoding detection, one-liner and multi-step AST reduction, CopyTo extraction, IEX unwrapping integration, fixed-point convergence, buffer zeroization, and CLI flags (expanding test suite to 418 tests, 100% pass).
+
 ## [0.15.0] - 2026-10-16
 
 ### Added

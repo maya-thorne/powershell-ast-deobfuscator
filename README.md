@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.15.0-blue.svg?style=flat-square" alt="Release v0.15.0" /></a>
+  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.16.0-blue.svg?style=flat-square" alt="Release v0.16.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MT--SRL-emerald.svg?style=flat-square" alt="License MT-SRL" /></a>
   <a href="ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-Active-purple.svg?style=flat-square" alt="Roadmap Active" /></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Policy-red.svg?style=flat-square" alt="Security Policy" /></a>
@@ -62,6 +62,7 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 18. **DownloadString &amp; WebClient API URL Carving (`src/webclient_tracer.py`)**: Statically traces and extracts remote payload download cradles, decodes obfuscated DWORD/hex/octal IPs, binds headers and proxies, and outputs normalized URLs.
 19. **Automated Benchmark Harness &amp; Telemetry (`src/benchmark.py`)**: Runs evaluation over a 30-sample corpus across 10 categories, calculating Shannon entropy, artifact removal, ground-truth indicator recall, and composite fidelity score.
 20. **YARA &amp; Sigma Threat Hunting Rule Synthesizer (`src/threat_rule_generator.py`)**: Extracts high-fidelity indicators (C2 URLs, AMSI/ETW hooks, memory injection APIs, execution cradles, persistence mechanisms) across raw and AST-deobfuscated payloads, synthesizing correlated YARA 4.x rules and SigmaHQ YAML detection rules targeting ScriptBlock Logging (EID 4104), Module Logging (EID 4103), and Process Creation (EID 4688).
+21. **In-Memory Compressed Stream Decompression (`src/compression_reducer.py`, `src/compression_decompressor.py`)**: Statically unpacks .NET in-memory compressed streams (`[IO.Compression.GZipStream]`, `[IO.Compression.DeflateStream]`, `BrotliStream`) wrapped around `[IO.MemoryStream]`, `[Convert]::FromBase64String`, byte arrays, and `[IO.StreamReader]::ReadToEnd()` or `[System.Text.Encoding]::GetString()`, resolving multi-step variable assignment chains, RFC 1951 raw deflate / RFC 1952 gzip payloads, multi-encoding auto-detection, and memory buffer zeroization.
 
 
 ---
@@ -118,6 +119,9 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | **YARA 4.x Threat Rule Synthesis** | `pwsh-ast malware.ps1 --generate-yara` | Synthesizes high-fidelity YARA rules with category prefixes, hex byte patterns, and condition trees |
 | **SigmaHQ Detection Rule Generation** | `pwsh-ast malware.ps1 --generate-sigma` | Generates standardized Sigma YAML rules for EID 4104 (ScriptBlock), EID 4103, and EID 4688 |
 | **Correlated Threat Ruleset Bundle** | `pwsh-ast malware.ps1 --generate-rules --rule-target dual` | Emits correlated YARA/Sigma bundle with dual-mode raw/deobfuscated strings and MITRE tags |
+| **In-Memory GZip Stream Unpacking** | `(New-Object IO.StreamReader(New-Object IO.Compression.GZipStream(New-Object IO.MemoryStream(,[Convert]::FromBase64String('H4sI...')), 1))).ReadToEnd()` | `Write-Output "Payload Decompressed"` |
+| **Raw Deflate Stream Unpacking** | `[System.Text.Encoding]::UTF8.GetString((New-Object IO.Compression.DeflateStream(New-Object IO.MemoryStream($rawBytes), 0)).ToArray())` | `Invoke-Expression 'Get-Process'` |
+| **Multi-Step Stream Assignment Reduction** | `$ms = New-Object IO.MemoryStream(,$bytes); $gz = New-Object IO.Compression.GZipStream($ms, 0); ...` | Consolidated inline string payload expression |
 
 ---
 
@@ -160,9 +164,13 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | `src/yara_generator.py` | YARA 4.x detection rule synthesizer with category string prefixes, hex byte patterns &amp; balanced conditions |
 | `src/sigma_generator.py` | SigmaHQ YAML detection rule generator for ScriptBlock Logging (EID 4104) &amp; Process Creation (EID 4688) |
 | `src/threat_rule_generator.py` | Unified threat hunting facade coordinating indicator extraction, YARA &amp; Sigma rule synthesis |
+| `src/compression_models.py` | Compression algorithm enums, stream encoding models, and layer telemetry schemas |
+| `src/compression_decompressor.py` | RFC 1951 Deflate, RFC 1952 Gzip, Brotli decompressors, encoding heuristics & buffer zeroize |
+| `src/compression_reducer.py` | AST reducer for one-liner and multi-step .NET MemoryStream/GZipStream/DeflateStream pipelines |
+| `src/compression.py` | Public facade coordinating compressed stream AST reduction and telemetry tracing |
 | `src/deobfuscator_engine.py` | Multi-pass fixed-point convergence engine with AMSI/ETW bypass integration &amp; threat rule generation |
 | `src/cli.py` | Command-line interface with AST visualization, benchmark runner, URL carver, AMSI/ETW scanner, YARA/Sigma synthesizer &amp; forensic telemetry |
-| `tests/` | Comprehensive test suite (396 unit tests) covering lexer, parser, normalizer, crypto, URL carving, IEX peeling, AMSI/ETW detector &amp; threat rule generation |
+| `tests/` | Comprehensive test suite (418 unit tests) covering lexer, parser, normalizer, crypto, URL carving, IEX peeling, AMSI/ETW detector, threat rules &amp; in-memory stream decompressor |
 | `ROADMAP.md` | Public development milestones and engineering roadmap |
 | `SECURITY.md` | Vulnerability disclosure policy and reporting process |
 
@@ -177,10 +185,10 @@ Run the full automated test suite:
 python -m unittest discover tests -v
 ```
 
-All 396 unit tests execute with zero failures:
+All 418 unit tests execute with zero failures:
 
 ```text
-Ran 396 tests in 0.704s
+Ran 418 tests in 0.781s
 
 OK
 ```
@@ -215,8 +223,11 @@ python -m src.cli "iex (iex (iex 'calc.exe'))"
 # Trace layered IEX unwrapping telemetry as structured JSON
 python -m src.cli sample.ps1 --trace-iex
 
-# Disable specific passes if raw casing, subexpression, or IEX syntax is required
-python -m src.cli sample.ps1 --no-normalize-casing --no-unwrap-subexpr --no-unwrap-iex
+# In-memory compressed stream decompression & JSON telemetry (active by default)
+python -m src.cli compressed_payload.ps1 --trace-streams
+
+# Disable specific passes if raw casing, subexpression, IEX, or stream decompression syntax is required
+python -m src.cli sample.ps1 --no-normalize-casing --no-unwrap-subexpr --no-unwrap-iex --no-decompress-streams
 ```
 
 #### Automated Benchmark Harness
@@ -381,6 +392,13 @@ print(mermaid_diagram)
 # 9. Extract structural metrics
 metrics = extract_ast_metrics("Get-Process | Out-String")
 print(f"Total nodes: {metrics['total_nodes']}, Cyclomatic complexity: {metrics['cyclomatic_complexity']}")
+
+# 10. In-Memory Compressed Stream Decompression
+from src.compression import decompress_compressed_stream
+compressed_payload = "(New-Object IO.StreamReader(New-Object IO.Compression.GZipStream(New-Object IO.MemoryStream(,[Convert]::FromBase64String('H4sIAAAAAAAEAEvMS8kvKlEoycgsVgIA8aGg4wsAAAA=')), 1))).ReadToEnd()"
+unpacked_code = engine.deobfuscate(compressed_payload)
+print(unpacked_code)  # 'Hello Decompressed World'
+print(f"Decompressed {len(engine.last_compression_layers)} stream layers")
 ```
 
 ---

@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from .amsi_etw_detector import PowerShellAmsiEtwDetector
 from .amsi_etw_signatures import AmsiEtwFinding
+from .compression import DecompressedStreamLayer, PowerShellCompressionReducer
 from .encoded_command_unwrapper import EncodedCommandLayer, PowerShellEncodedCommandUnwrapper
 from .iex_unwrapper import IEXLayer
 from .lexer import PowerShellLexer
@@ -20,6 +21,7 @@ class PowerShellDeobfuscator:
     Multi-pass deobfuscation engine for obfuscated PowerShell scripts.
     Executes AST normalization, cryptographic unboxing, reflection unwrapping,
     pipeline simplification, recursive Base64 encoded command unraveling,
+    recursive in-memory stream decompression (GzipStream / DeflateStream),
     recursive IEX (Invoke-Expression) wrapper peeling, and AMSI/ETW bypass detection.
     """
 
@@ -31,6 +33,7 @@ class PowerShellDeobfuscator:
         unwrap_subexpr: bool = True,
         normalize_casing: bool = True,
         unwrap_iex: bool = True,
+        decompress_streams: bool = True,
         detect_amsi_etw: bool = True,
         neutralize_amsi_etw: bool = False,
         neutralize_amsi_mode: str = "comment",
@@ -39,12 +42,15 @@ class PowerShellDeobfuscator:
         self.unwrap_subexpr = unwrap_subexpr
         self.normalize_casing = normalize_casing
         self.unwrap_iex = unwrap_iex
+        self.decompress_streams = decompress_streams
         self.detect_amsi_etw = detect_amsi_etw
         self.neutralize_amsi_etw = neutralize_amsi_etw
         self.neutralize_amsi_mode = neutralize_amsi_mode
         self.encoded_unwrapper = PowerShellEncodedCommandUnwrapper(symbols=self.symbols)
+        self.comp_reducer = PowerShellCompressionReducer(symbols=self.symbols)
         self.amsi_detector = PowerShellAmsiEtwDetector(symbols=self.symbols)
         self.last_layers: List[EncodedCommandLayer] = []
+        self.last_compression_layers: List[DecompressedStreamLayer] = []
         self.last_iex_layers: List[IEXLayer] = []
         self.last_amsi_etw_findings: List[AmsiEtwFinding] = []
 
@@ -55,12 +61,20 @@ class PowerShellDeobfuscator:
         current = script.strip()
         iteration = 0
         self.last_layers = []
+        self.last_compression_layers = []
         self.last_iex_layers = []
         self.last_amsi_etw_findings = []
 
         while iteration < self.MAX_ITERATIONS:
             iteration += 1
             prev = current
+
+            # Pass 0: Recursive compressed stream unwrapping (GzipStream / DeflateStream)
+            if self.decompress_streams:
+                comp_res = self.comp_reducer.unwrap_text(current)
+                if comp_res.has_decompressed_streams:
+                    self.last_compression_layers.extend(comp_res.layers)
+                    current = comp_res.unwrapped_script
 
             # Pass 1: Recursive base64 encoded command unwrapping (-enc / -EncodedCommand)
             unwrap_res = self.encoded_unwrapper.unwrap_text(current)
@@ -79,8 +93,11 @@ class PowerShellDeobfuscator:
                     unwrap_subexpr=self.unwrap_subexpr,
                     normalize_casing=self.normalize_casing,
                     unwrap_iex=self.unwrap_iex,
+                    decompress_streams=self.decompress_streams,
                 )
                 norm_ast = normalizer.normalize(ast)
+                if normalizer.comp_reducer.last_layers:
+                    self.last_compression_layers.extend(normalizer.comp_reducer.last_layers)
                 if normalizer.iex_unwrapper.last_layers:
                     self.last_iex_layers.extend(normalizer.iex_unwrapper.last_layers)
                 current = normalizer.to_source(norm_ast)

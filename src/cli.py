@@ -113,6 +113,23 @@ def main() -> None:
         help="Disable automatic IEX wrapper peeling",
     )
     parser.add_argument(
+        "--decompress-streams",
+        action="store_true",
+        default=True,
+        help="Decompress in-memory GzipStream, DeflateStream, and BrotliStream payloads (default: True)",
+    )
+    parser.add_argument(
+        "--no-decompress-streams",
+        dest="decompress_streams",
+        action="store_false",
+        help="Disable in-memory compressed stream deobfuscation",
+    )
+    parser.add_argument(
+        "--trace-streams",
+        action="store_true",
+        help="Extract and dump in-memory compressed stream layer telemetry as structured JSON",
+    )
+    parser.add_argument(
         "--detect-amsi",
         action="store_true",
         help="Detect AMSI and ETW bypass signatures and dump findings as structured JSON",
@@ -428,6 +445,48 @@ def main() -> None:
             print(output_text)
         return
 
+    # 5.1 In-memory compressed stream layer forensic telemetry dump
+    if args.trace_streams:
+        engine = PowerShellDeobfuscator(
+            unwrap_subexpr=args.unwrap_subexpr,
+            normalize_casing=args.normalize_casing,
+            unwrap_iex=args.unwrap_iex,
+            decompress_streams=True,
+        )
+        deobf_script = engine.deobfuscate(script_text)
+        stream_layers = [
+            {
+                "depth": l.depth,
+                "compression_type": l.compression_type.value if hasattr(l.compression_type, "value") else str(l.compression_type),
+                "compressed_size": l.compressed_size,
+                "decompressed_size": l.decompressed_size,
+                "compression_ratio": l.compression_ratio,
+                "detected_encoding": l.detected_encoding,
+                "entropy_before": l.entropy_before,
+                "entropy_after": l.entropy_after,
+                "raw_expression": l.raw_expression,
+                "decompressed_text": l.decompressed_text,
+            }
+            for l in engine.last_compression_layers
+        ]
+        output_text = json.dumps(
+            {
+                "total_layers": len(stream_layers),
+                "has_compressed_streams": len(stream_layers) > 0,
+                "layers": stream_layers,
+                "final_script": deobf_script,
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as f:
+                f.write(output_text + "\n")
+            print(f"[+] Compressed stream trace saved to: {args.output}")
+        else:
+            print(output_text)
+        return
+
     # 6. AMSI & ETW bypass signature forensic dump
     if args.detect_amsi:
         detector = PowerShellAmsiEtwDetector()
@@ -550,6 +609,7 @@ def main() -> None:
         unwrap_subexpr=args.unwrap_subexpr,
         normalize_casing=args.normalize_casing,
         unwrap_iex=args.unwrap_iex,
+        decompress_streams=args.decompress_streams,
         neutralize_amsi_etw=args.neutralize_amsi,
         neutralize_amsi_mode=args.neutralize_mode,
     )

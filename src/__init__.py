@@ -106,9 +106,41 @@ from .amsi_etw_detector import (
     neutralize_amsi_etw,
 )
 from .amsi_etw_sanitizer import AmsiEtwSanitizer
+from .rule_models import (
+    IndicatorCategory,
+    MitreAttackCatalog,
+    RuleMetadata,
+    RuleSeverity,
+    RuleStatus,
+    RuleSynthesisOptions,
+    ThreatIndicator,
+)
+from .indicator_extractor import PowerShellIndicatorExtractor
+from .yara_generator import YaraRuleGenerator
+from .sigma_generator import SigmaRuleGenerator
+from .threat_rule_generator import (
+    ThreatRuleGenerator,
+    generate_sigma_rule,
+    generate_threat_rules,
+    generate_yara_rule,
+)
 
-__version__ = "0.14.0"
+__version__ = "0.15.0"
 __all__ = [
+    "ThreatIndicator",
+    "IndicatorCategory",
+    "RuleSeverity",
+    "RuleStatus",
+    "RuleMetadata",
+    "RuleSynthesisOptions",
+    "MitreAttackCatalog",
+    "PowerShellIndicatorExtractor",
+    "YaraRuleGenerator",
+    "SigmaRuleGenerator",
+    "ThreatRuleGenerator",
+    "generate_yara_rule",
+    "generate_sigma_rule",
+    "generate_threat_rules",
     "TokenType",
     "Token",
     "PowerShellLexer",

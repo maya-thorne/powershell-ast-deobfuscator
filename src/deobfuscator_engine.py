@@ -119,3 +119,63 @@ class PowerShellDeobfuscator:
                 break
             prev = text
         return text
+
+    def generate_yara_rule(
+        self,
+        script: str,
+        options: Optional[Any] = None,
+        metadata: Optional[Any] = None,
+    ) -> str:
+        """
+        Deobfuscates script and synthesizes a corresponding YARA 4.x detection rule.
+        """
+        from .threat_rule_generator import ThreatRuleGenerator
+
+        deobf_script = self.deobfuscate(script)
+        generator = ThreatRuleGenerator()
+        return generator.generate_yara(
+            raw_script=script,
+            deobfuscated_script=deobf_script,
+            metadata=metadata,
+            options=options,
+        )
+
+    def generate_sigma_rule(
+        self,
+        script: str,
+        options: Optional[Any] = None,
+        metadata: Optional[Any] = None,
+    ) -> str:
+        """
+        Deobfuscates script and synthesizes a corresponding Sigma YAML detection rule.
+        """
+        from .threat_rule_generator import ThreatRuleGenerator
+
+        deobf_script = self.deobfuscate(script)
+        generator = ThreatRuleGenerator()
+        return generator.generate_sigma(
+            raw_script=script,
+            deobfuscated_script=deobf_script,
+            metadata=metadata,
+            options=options,
+        )
+
+    def generate_threat_rules(
+        self,
+        script: str,
+        options: Optional[Any] = None,
+        metadata: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """
+        Deobfuscates script and synthesizes correlated YARA and Sigma rules with indicator telemetry.
+        """
+        from .threat_rule_generator import ThreatRuleGenerator
+
+        deobf_script = self.deobfuscate(script)
+        generator = ThreatRuleGenerator()
+        return generator.generate_ruleset(
+            raw_script=script,
+            deobfuscated_script=deobf_script,
+            metadata=metadata,
+            options=options,
+        )

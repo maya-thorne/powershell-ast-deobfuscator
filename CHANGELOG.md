@@ -5,6 +5,43 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-10-16
+
+### Added
+- Automated YARA 4.x and SigmaHQ threat hunting rule synthesis engine:
+  - Threat indicator taxonomy and data models (`src/rule_models.py`):
+    - Multi-category indicator classification: `IndicatorCategory` (NETWORK_C2, DEFENSE_EVASION, EXECUTION_CRADLE, MEMORY_INJECTION, PERSISTENCE, CRYPTO_OBFUSCATION, SUSPICIOUS_API, TARGET_IDENTIFIER).
+    - Curated MITRE ATT&CK Enterprise Matrix catalog mapping techniques (T1059.001, T1562.001, T1027, T1105, T1055, T1071.001, T1547.001, T1053.005, T1546.004, T1082) to Sigma standard tags.
+    - Deterministic UUIDv5 rule identifiers and standardized metadata structures (`RuleMetadata`, `RuleSynthesisOptions`).
+  - High-fidelity forensic indicator extractor (`src/indicator_extractor.py`):
+    - AST-aware indicator extraction correlating carved download URLs, remote hosts, AMSI/ETW bypass hooks, memory allocation APIs (VirtualAlloc, VirtualProtect, CreateRemoteThread), execution cradles (DownloadString, [ScriptBlock]::Create), persistence keys, and cryptographic streams.
+    - Scope tracking: identifies indicators concealed by obfuscation layers (`is_deobfuscated_only`) vs. raw artifact strings.
+    - Heuristic weighting (1.0 to 10.0 scale) and noise suppression against ubiquitous PowerShell keywords.
+  - Compiler-grade YARA 4.x rule synthesizer (`src/yara_generator.py`):
+    - Category-prefixed string identifiers (`$c2_*`, `$evas_*`, `$cradle_*`, `$mem_*`, `$persist_*`, `$api_*`, `$target_*`).
+    - Standard modifiers (`ascii wide nocase`) and hex bytecode patterns (`{ C3 }`, `{ B8 57 00 07 80 C3 }`).
+    - Robust condition synthesis supporting balanced correlation (`any of ($c2*) or (1 of ($evas*) and 1 of ($cradle*))`), strict, loose, and categorized multi-vector requirements with optional filesize gates.
+    - Dual-scope mode with `$raw_*` and `$deobf_*` string prefixes.
+    - Static YARA syntax verification and linting helper.
+  - Standard-compliant SigmaHQ YAML rule generator (`src/sigma_generator.py`):
+    - Multi-logsource support: PowerShell ScriptBlock Logging (Event ID 4104), Process Creation (Event ID 4688 / Sysmon 1), and Module Logging (Event ID 4103).
+    - Pure-Python zero-dependency YAML serializer guaranteeing deterministic 2-space indentation and proper scalar quoting.
+    - Category-grouped selection trees (`selection_c2`, `selection_evasion`, `selection_cradle`, `selection_injection`) with correlation condition trees.
+  - Unified threat hunting facade and engine integration (`src/threat_rule_generator.py`, `src/deobfuscator_engine.py`):
+    - Direct methods on `PowerShellDeobfuscator`: `generate_yara_rule()`, `generate_sigma_rule()`, and `generate_threat_rules()`.
+    - Standalone rule generator facade with file export capabilities (`save_rules`).
+- CLI threat hunting flags (`src/cli.py`):
+  - Added `--generate-yara`: outputs synthesized YARA 4.x detection rule to stdout or file.
+  - Added `--generate-sigma`: outputs synthesized Sigma YAML detection rule.
+  - Added `--generate-rules`: outputs full ruleset bundle with indicator telemetry JSON.
+  - Added `--rule-name` and `--rule-title`: customizable rule identifiers.
+  - Added `--rule-target`: configurable scope selection (`deobfuscated`, `raw`, `dual`).
+  - Added `--sigma-logsource`: target logsource selection (`scriptblock`, `process_creation`, `module`).
+  - Added `--yara-condition`: condition style selection (`balanced`, `strict`, `loose`, `categorized`).
+  - Added `--rule-output-dir`: destination directory to persist `.yar` and `.yml` files.
+- Comprehensive test coverage (`tests/test_threat_rule_generator.py`):
+  - 27 unit and integration tests covering indicator extraction, YARA syntax, string escaping, hex patterns, condition modes, Sigma YAML formatting, process creation, deobfuscator engine methods, rule persistence, and CLI execution (total test suite expanded to 396 tests, 100% pass).
+
 ## [0.14.0] - 2026-10-15
 
 ### Added

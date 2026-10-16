@@ -159,6 +159,54 @@ def main() -> None:
         default="text",
         help="Output format for benchmark report (default: text)",
     )
+    parser.add_argument(
+        "--generate-yara",
+        action="store_true",
+        help="Synthesize and output a YARA 4.x detection rule for the script payload",
+    )
+    parser.add_argument(
+        "--generate-sigma",
+        action="store_true",
+        help="Synthesize and output a Sigma YAML detection rule for the script payload",
+    )
+    parser.add_argument(
+        "--generate-rules",
+        action="store_true",
+        help="Synthesize both YARA and Sigma threat hunting rules and dump telemetry JSON",
+    )
+    parser.add_argument(
+        "--rule-name",
+        default=None,
+        help="Custom rule name identifier for generated YARA/Sigma detection rules",
+    )
+    parser.add_argument(
+        "--rule-title",
+        default=None,
+        help="Custom rule title for generated Sigma detection rules",
+    )
+    parser.add_argument(
+        "--rule-target",
+        choices=["deobfuscated", "raw", "dual"],
+        default="deobfuscated",
+        help="Target scope for rule synthesis: deobfuscated (default), raw, or dual",
+    )
+    parser.add_argument(
+        "--sigma-logsource",
+        choices=["scriptblock", "process_creation", "module"],
+        default="scriptblock",
+        help="Sigma logsource target: scriptblock (default, EID 4104), process_creation (EID 4688), or module (EID 4103)",
+    )
+    parser.add_argument(
+        "--yara-condition",
+        choices=["balanced", "strict", "loose", "categorized"],
+        default="balanced",
+        help="YARA condition synthesis style: balanced (default), strict, loose, or categorized",
+    )
+    parser.add_argument(
+        "--rule-output-dir",
+        default=None,
+        help="Destination directory to save generated .yar and .yml rule files",
+    )
 
     args = parser.parse_args()
 
@@ -419,7 +467,85 @@ def main() -> None:
             print(output_text)
         return
 
-    # 7. Default: Full deobfuscation engine
+    # 7. Threat hunting rule synthesis (YARA & Sigma)
+    if args.generate_yara or args.generate_sigma or args.generate_rules:
+        from .rule_models import RuleMetadata, RuleSynthesisOptions
+        from .threat_rule_generator import ThreatRuleGenerator
+
+        engine = PowerShellDeobfuscator(
+            unwrap_subexpr=args.unwrap_subexpr,
+            normalize_casing=args.normalize_casing,
+            unwrap_iex=args.unwrap_iex,
+            detect_amsi_etw=True,
+        )
+        deobf_script = engine.deobfuscate(script_text)
+
+        opts = RuleSynthesisOptions(
+            target_scope=args.rule_target,
+            yara_condition_style=args.yara_condition,
+            sigma_logsource=args.sigma_logsource,
+        )
+        custom_meta = None
+        if args.rule_name or args.rule_title:
+            custom_meta = RuleMetadata(
+                rule_name=args.rule_name or "PowerShell_Threat_Payload_Detected",
+                title=args.rule_title or "Suspicious PowerShell Threat Activity",
+                description="Auto-synthesized detection rule for PowerShell threat payload.",
+            )
+
+        gen = ThreatRuleGenerator()
+
+        if args.generate_rules:
+            ruleset = gen.generate_ruleset(
+                raw_script=script_text,
+                deobfuscated_script=deobf_script,
+                metadata=custom_meta,
+                options=opts,
+            )
+            if args.rule_output_dir:
+                base_name = args.rule_name or "powershell_threat"
+                saved = gen.save_rules(ruleset, args.rule_output_dir, base_name=base_name)
+                print(f"[+] YARA rule saved to: {saved['yara']}")
+                print(f"[+] Sigma rule saved to: {saved['sigma']}")
+            elif args.output:
+                with open(args.output, "w", encoding="utf-8") as f:
+                    json.dump(ruleset, f, indent=2, ensure_ascii=False)
+                print(f"[+] Threat ruleset JSON saved to: {args.output}")
+            else:
+                print(json.dumps(ruleset, indent=2, ensure_ascii=False))
+            return
+
+        if args.generate_yara:
+            yara_rule = gen.generate_yara(
+                raw_script=script_text,
+                deobfuscated_script=deobf_script,
+                metadata=custom_meta,
+                options=opts,
+            )
+            if args.output:
+                with open(args.output, "w", encoding="utf-8") as f:
+                    f.write(yara_rule)
+                print(f"[+] YARA rule saved to: {args.output}")
+            else:
+                print(yara_rule)
+            return
+
+        if args.generate_sigma:
+            sigma_rule = gen.generate_sigma(
+                raw_script=script_text,
+                deobfuscated_script=deobf_script,
+                metadata=custom_meta,
+                options=opts,
+            )
+            if args.output:
+                with open(args.output, "w", encoding="utf-8") as f:
+                    f.write(sigma_rule)
+                print(f"[+] Sigma rule saved to: {args.output}")
+            else:
+                print(sigma_rule)
+            return
+
+    # 8. Default: Full deobfuscation engine
     engine = PowerShellDeobfuscator(
         unwrap_subexpr=args.unwrap_subexpr,
         normalize_casing=args.normalize_casing,

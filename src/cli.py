@@ -130,6 +130,34 @@ def main() -> None:
         help="Extract and dump in-memory compressed stream layer telemetry as structured JSON",
     )
     parser.add_argument(
+        "--scope-analysis",
+        action="store_true",
+        help="Perform variable scope chain and lifecycle analysis, outputting human-readable report",
+    )
+    parser.add_argument(
+        "--scope-json",
+        action="store_true",
+        help="Dump variable scope hierarchy and symbol tables as structured JSON",
+    )
+    parser.add_argument(
+        "--export-scope-json",
+        metavar="PATH",
+        help="Export structured variable scope analysis to a JSON destination file",
+    )
+    parser.add_argument(
+        "--no-inline-vars",
+        dest="inline_scoped_vars",
+        action="store_false",
+        default=True,
+        help="Disable automatic scoped constant variable inlining",
+    )
+    parser.add_argument(
+        "--eliminate-dead-vars",
+        action="store_true",
+        default=False,
+        help="Eliminate dead variable assignments that have zero side-effects",
+    )
+    parser.add_argument(
         "--detect-amsi",
         action="store_true",
         help="Detect AMSI and ETW bypass signatures and dump findings as structured JSON",
@@ -604,6 +632,34 @@ def main() -> None:
                 print(sigma_rule)
             return
 
+    # 7.5. Variable scope and lifecycle analysis
+    if args.scope_analysis or args.scope_json or args.export_scope_json:
+        from .variable_scope import analyze_scopes, export_scope_json, to_scope_report
+
+        summary = analyze_scopes(script_text)
+        if args.scope_json or args.export_scope_json:
+            json_text = export_scope_json(summary)
+            if args.export_scope_json:
+                with open(args.export_scope_json, "w", encoding="utf-8") as f:
+                    f.write(json_text + "\n")
+                print(f"[+] Scope analysis JSON exported to: {args.export_scope_json}")
+            elif args.output:
+                with open(args.output, "w", encoding="utf-8") as f:
+                    f.write(json_text + "\n")
+                print(f"[+] Scope analysis JSON saved to: {args.output}")
+            else:
+                print(json_text)
+            return
+
+        report = to_scope_report(summary)
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as f:
+                f.write(report + "\n")
+            print(f"[+] Scope analysis report saved to: {args.output}")
+        else:
+            print(report)
+        return
+
     # 8. Default: Full deobfuscation engine
     engine = PowerShellDeobfuscator(
         unwrap_subexpr=args.unwrap_subexpr,
@@ -612,6 +668,8 @@ def main() -> None:
         decompress_streams=args.decompress_streams,
         neutralize_amsi_etw=args.neutralize_amsi,
         neutralize_amsi_mode=args.neutralize_mode,
+        inline_scoped_vars=args.inline_scoped_vars,
+        eliminate_dead_vars=args.eliminate_dead_vars,
     )
     result = engine.deobfuscate(script_text)
 

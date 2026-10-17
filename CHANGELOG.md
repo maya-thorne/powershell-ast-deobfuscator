@@ -5,6 +5,47 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-10-17
+
+### Added
+- Variable scope chain and lifecycle analysis engine:
+  - Scope models and telemetry schema (`src/scope_models.py`):
+    - Scope type classifications: `ScopeType` (`GLOBAL`, `SCRIPT`, `LOCAL`, `PRIVATE`, `FUNCTION`, `SCRIPT_BLOCK`, `USING`).
+    - Variable access modes: `AccessKind` (`READ`, `WRITE`, `DECLARATION`, `CLEAR`, `REMOVE`).
+    - Def-Use data structures: `VarDefinition` and `VarRead` recording statement indices, AST references, and reaching definition IDs.
+    - Symbol table model: `ScopeSymbol` tracking mutability, constant status, live ranges, dead definitions, shadowing, and uninitialized reads.
+    - Hierarchical scope frame model: `ScopeFrame` maintaining parent-child lexical scope trees and local symbol dictionaries.
+    - Aggregated telemetry container: `ScopeAnalysisSummary` capturing total scopes, symbols, definitions, reads, and anomaly counters.
+  - Hierarchical scope chain manager (`src/scope_chain.py`):
+    - Dual base frame hierarchy: Root `global` frame (Scope 0) with child `script` frame (Scope 1).
+    - Scope stack operations (`push_scope`, `pop_scope`, `current_scope`).
+    - Scope qualifier resolution for explicit modifiers (`$global:`, `$script:`, `$local:`, `$private:`, `$using:`, and numeric scopes `$0:`, `$1:`).
+    - Lexical scope traversal adhering to PowerShell rules: upward search from current scope to root.
+    - PowerShell `$private:` isolation enforcement: private symbols are inaccessible and invisible to descendant child scopes.
+    - Variable shadowing detection: marks local definitions that shadow identically named variables in enclosing outer scopes.
+    - Def-Use chain tracking connecting variable reads with reaching definitions and detecting dead (unread/overwritten) writes.
+  - AST lifecycle tracker and command visitor (`src/variable_lifecycle_tracker.py`):
+    - Comprehensive AST visitor mapping assignments, variable reads, loops (`ForEach`, `For`, `While`), conditionals, and function blocks.
+    - Variable cmdlet mapping: parses and links `Set-Variable` (`sv`), `Get-Variable` (`gv`), `New-Variable` (`nv`), `Clear-Variable` (`clv`), and `Remove-Variable` (`rv`) with parameter introspection (`-Name`, `-Value`, `-Scope`, `-Option`).
+    - Function and filter declaration tracking: pushes isolated function scopes and binds function parameters.
+  - Scoped constant inliner and dead variable eliminator (`src/variable_scope_inliner.py`):
+    - Scope-aware constant propagation replacing constant `VariableNode` instances with cloned literals while strictly respecting lexical scopes and shadowing.
+    - Cmdlet unboxing: rewrites `Get-Variable` calls to variable nodes or resolved constants; transforms `Set-Variable` into assignment nodes.
+    - Pure dead assignment elimination: safely eliminates dead variable assignments with zero side-effects when enabled.
+  - Unified public facade (`src/variable_scope.py`):
+    - Exposes `analyze_scopes`, `inline_scoped_variables`, `export_scope_json`, `to_scope_report`, and core classes.
+  - Deobfuscator engine and normalizer integration (`src/deobfuscator_engine.py`, `src/normalizer.py`):
+    - Integrated variable scope inlining as a compiler pass (Pass 1.5 and Pass 13 convergence).
+    - Added `get_scope_analysis()` method and `last_scope_summary` telemetry to `PowerShellDeobfuscator`.
+- CLI variable scope forensics flags (`src/cli.py`):
+  - Added `--scope-analysis`: generates and prints human-readable scope hierarchy and symbol table reports.
+  - Added `--scope-json`: dumps complete scope graph and symbol table telemetry as structured JSON.
+  - Added `--export-scope-json`: saves structured scope analysis JSON to a specified output file.
+  - Added `--no-inline-vars`: toggles off scoped constant variable propagation.
+  - Added `--eliminate-dead-vars`: enables removal of side-effect-free dead variable assignments.
+- Comprehensive unit and integration test coverage (`tests/test_variable_scope.py`):
+  - 24 new unit and integration tests covering scope qualifiers, private isolation, shadowing, def-use chains, variable cmdlets, constant propagation, dead code elimination, JSON export, and CLI flags (expanding test suite to 442 tests, 100% pass).
+
 ## [0.16.0] - 2026-10-16
 
 ### Added

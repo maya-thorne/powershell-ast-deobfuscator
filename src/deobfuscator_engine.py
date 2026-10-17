@@ -14,6 +14,7 @@ from .iex_unwrapper import IEXLayer
 from .lexer import PowerShellLexer
 from .normalizer import PowerShellNormalizer
 from .parser import PowerShellParser
+from .scope_models import ScopeAnalysisSummary
 
 
 class PowerShellDeobfuscator:
@@ -22,6 +23,7 @@ class PowerShellDeobfuscator:
     Executes AST normalization, cryptographic unboxing, reflection unwrapping,
     pipeline simplification, recursive Base64 encoded command unraveling,
     recursive in-memory stream decompression (GzipStream / DeflateStream),
+    variable scope chain analysis & constant propagation,
     recursive IEX (Invoke-Expression) wrapper peeling, and AMSI/ETW bypass detection.
     """
 
@@ -37,6 +39,8 @@ class PowerShellDeobfuscator:
         detect_amsi_etw: bool = True,
         neutralize_amsi_etw: bool = False,
         neutralize_amsi_mode: str = "comment",
+        inline_scoped_vars: bool = True,
+        eliminate_dead_vars: bool = False,
     ):
         self.symbols = symbols if symbols is not None else {}
         self.unwrap_subexpr = unwrap_subexpr
@@ -46,6 +50,8 @@ class PowerShellDeobfuscator:
         self.detect_amsi_etw = detect_amsi_etw
         self.neutralize_amsi_etw = neutralize_amsi_etw
         self.neutralize_amsi_mode = neutralize_amsi_mode
+        self.inline_scoped_vars = inline_scoped_vars
+        self.eliminate_dead_vars = eliminate_dead_vars
         self.encoded_unwrapper = PowerShellEncodedCommandUnwrapper(symbols=self.symbols)
         self.comp_reducer = PowerShellCompressionReducer(symbols=self.symbols)
         self.amsi_detector = PowerShellAmsiEtwDetector(symbols=self.symbols)
@@ -53,6 +59,7 @@ class PowerShellDeobfuscator:
         self.last_compression_layers: List[DecompressedStreamLayer] = []
         self.last_iex_layers: List[IEXLayer] = []
         self.last_amsi_etw_findings: List[AmsiEtwFinding] = []
+        self.last_scope_summary: Optional[ScopeAnalysisSummary] = None
 
     def deobfuscate(self, script: str) -> str:
         """
@@ -64,6 +71,7 @@ class PowerShellDeobfuscator:
         self.last_compression_layers = []
         self.last_iex_layers = []
         self.last_amsi_etw_findings = []
+        self.last_scope_summary = None
 
         while iteration < self.MAX_ITERATIONS:
             iteration += 1
@@ -94,12 +102,16 @@ class PowerShellDeobfuscator:
                     normalize_casing=self.normalize_casing,
                     unwrap_iex=self.unwrap_iex,
                     decompress_streams=self.decompress_streams,
+                    inline_scoped_vars=self.inline_scoped_vars,
+                    eliminate_dead_vars=self.eliminate_dead_vars,
                 )
                 norm_ast = normalizer.normalize(ast)
                 if normalizer.comp_reducer.last_layers:
                     self.last_compression_layers.extend(normalizer.comp_reducer.last_layers)
                 if normalizer.iex_unwrapper.last_layers:
                     self.last_iex_layers.extend(normalizer.iex_unwrapper.last_layers)
+                if normalizer.scope_inliner.last_summary:
+                    self.last_scope_summary = normalizer.scope_inliner.last_summary
                 current = normalizer.to_source(norm_ast)
             except Exception:
                 # If AST parsing fails on partial fragment, retain current representation
@@ -196,3 +208,11 @@ class PowerShellDeobfuscator:
             metadata=metadata,
             options=options,
         )
+
+    def get_scope_analysis(self, script: str) -> ScopeAnalysisSummary:
+        """
+        Executes static variable scope and lifecycle analysis over the script AST.
+        """
+        from .variable_scope import analyze_scopes
+
+        return analyze_scopes(script, symbols=self.symbols)

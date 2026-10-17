@@ -48,6 +48,7 @@ from .scriptblock_simplifier import PowerShellScriptBlockSimplifier
 from .secure_string_reducer import PowerShellSecureStringReducer
 from .subexpression_unwrapper import PowerShellSubexpressionUnwrapper
 from .type_casting_resolver import PowerShellTypeCastingResolver
+from .variable_scope_inliner import PowerShellVariableScopeInliner
 from .xor_loop_decryptor import PowerShellXorLoopDecryptor
 
 
@@ -69,14 +70,23 @@ class PowerShellNormalizer:
         normalize_casing: bool = True,
         unwrap_iex: bool = True,
         decompress_streams: bool = True,
+        inline_scoped_vars: bool = True,
+        eliminate_dead_vars: bool = False,
     ):
         self.symbols = symbols if symbols is not None else {}
         self.unwrap_subexpr = unwrap_subexpr
         self.normalize_casing = normalize_casing
         self.unwrap_iex = unwrap_iex
         self.decompress_streams = decompress_streams
+        self.inline_scoped_vars = inline_scoped_vars
+        self.eliminate_dead_vars = eliminate_dead_vars
         self.enc_unwrapper = PowerShellEncodedCommandUnwrapper(symbols=self.symbols)
         self.env_inliner = PowerShellEnvironmentInliner(symbols=self.symbols, env=env)
+        self.scope_inliner = PowerShellVariableScopeInliner(
+            symbols=self.symbols,
+            propagate_constants=self.inline_scoped_vars,
+            eliminate_dead_vars=self.eliminate_dead_vars,
+        )
         self.sec_reducer = PowerShellSecureStringReducer(symbols=self.symbols)
         self.type_resolver = PowerShellTypeCastingResolver(symbols=self.symbols)
         self.bitwise_folder = PowerShellBitwiseFoldingEngine(symbols=self.symbols)
@@ -94,6 +104,9 @@ class PowerShellNormalizer:
         node = self.enc_unwrapper.unwrap_ast(node)
         # Pass 1: Inline environment variables & ExecutionContext methods
         node = self.env_inliner.inline(node)
+        # Pass 1.5: Variable scope chain & constant propagation
+        if self.inline_scoped_vars or self.eliminate_dead_vars:
+            node = self.scope_inliner.inline(node)
         # Pass 2: Reduce SecureString operations
         node = self.sec_reducer.reduce(node)
         # Pass 3: Arithmetic and bitwise static constant folding
@@ -131,6 +144,8 @@ class PowerShellNormalizer:
         node = self.type_resolver.resolve(node)
         node = self.sb_simplifier.simplify(node)
         node = self.env_inliner.inline(node)
+        if self.inline_scoped_vars or self.eliminate_dead_vars:
+            node = self.scope_inliner.inline(node)
         node = self.refl_unwrapper.unwrap(node)
         node = self.sec_reducer.reduce(node)
         if self.unwrap_iex:

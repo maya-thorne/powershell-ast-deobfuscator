@@ -140,9 +140,45 @@ from .variable_scope import (
     inline_scoped_variables,
     to_scope_report,
 )
+from .policy_models import (
+    BypassTechnique,
+    ExecutionPolicyLevel,
+    PolicyFinding,
+    PolicyScope,
+    PolicySeverity,
+    PolicySimulationSummary,
+    PolicyTransition,
+    ScopeState,
+)
+from .policy_reducer import PowerShellPolicyReducer
+from .policy_simulator import PowerShellPolicySimulator
+from .execution_policy import (
+    detect_policy_bypasses,
+    export_policy_json,
+    neutralize_policy_bypasses,
+    parse_cli_policy_args,
+    simulate_execution_policy,
+    to_policy_report,
+)
 
-__version__ = "0.17.0"
+__version__ = "0.18.0"
 __all__ = [
+    "ExecutionPolicyLevel",
+    "PolicyScope",
+    "BypassTechnique",
+    "PolicySeverity",
+    "PolicyFinding",
+    "ScopeState",
+    "PolicyTransition",
+    "PolicySimulationSummary",
+    "PowerShellPolicySimulator",
+    "PowerShellPolicyReducer",
+    "simulate_execution_policy",
+    "detect_policy_bypasses",
+    "parse_cli_policy_args",
+    "neutralize_policy_bypasses",
+    "to_policy_report",
+    "export_policy_json",
     "ScopeType",
     "AccessKind",
     "VarRead",

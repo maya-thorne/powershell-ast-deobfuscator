@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.17.0-blue.svg?style=flat-square" alt="Release v0.17.0" /></a>
+  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.18.0-blue.svg?style=flat-square" alt="Release v0.18.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MT--SRL-emerald.svg?style=flat-square" alt="License MT-SRL" /></a>
   <a href="ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-Active-purple.svg?style=flat-square" alt="Roadmap Active" /></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Policy-red.svg?style=flat-square" alt="Security Policy" /></a>
@@ -64,7 +64,7 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 20. **YARA &amp; Sigma Threat Hunting Rule Synthesizer (`src/threat_rule_generator.py`)**: Extracts high-fidelity indicators (C2 URLs, AMSI/ETW hooks, memory injection APIs, execution cradles, persistence mechanisms) across raw and AST-deobfuscated payloads, synthesizing correlated YARA 4.x rules and SigmaHQ YAML detection rules targeting ScriptBlock Logging (EID 4104), Module Logging (EID 4103), and Process Creation (EID 4688).
 21. **In-Memory Compressed Stream Decompression (`src/compression_reducer.py`, `src/compression_decompressor.py`)**: Statically unpacks .NET in-memory compressed streams (`[IO.Compression.GZipStream]`, `[IO.Compression.DeflateStream]`, `BrotliStream`) wrapped around `[IO.MemoryStream]`, `[Convert]::FromBase64String`, byte arrays, and `[IO.StreamReader]::ReadToEnd()` or `[System.Text.Encoding]::GetString()`, resolving multi-step variable assignment chains, RFC 1951 raw deflate / RFC 1952 gzip payloads, multi-encoding auto-detection, and memory buffer zeroization.
 22. **Variable Scope Chain &amp; Lifecycle Analysis (`src/scope_chain.py`, `src/variable_scope_inliner.py`)**: Hierarchical scope frame management (Global, Script, Local, Private, Function, ScriptBlock), private variable boundary isolation, variable shadowing detection, Def-Use chain tracking, cmdlet-based variable mapping (`Set-Variable`, `Get-Variable`, `New-Variable`, `Clear-Variable`, `Remove-Variable`), constant propagation respecting lexical scopes, and side-effect-free dead variable assignment elimination.
-
+23. **Runtime ExecutionPolicy Simulation &amp; Neutralization (`src/policy_simulator.py`, `src/policy_reducer.py`)**: Simulates the 5 PowerShell configuration scopes (MachinePolicy GPO, UserPolicy GPO, Process environment, CurrentUser HKCU, LocalMachine HKLM), evaluates precedence rules, identifies execution policy bypasses (`-ExecutionPolicy` CLI flags, `$env:PSExecutionPolicyPreference`, `Set-ExecutionPolicy` cmdlets, in-memory reflection `AuthorizationManager` tampering, and Alternate Data Streams `Zone.Identifier` stripping), calculates threat risk metrics, and surgically neutralizes bypass commands (comment wrapping, statement stripping, or policy inversion).
 
 ---
 
@@ -73,6 +73,7 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 
 | Capability | Obfuscated Example | Deobfuscated Output |
 |---|---|---|
+| **ExecutionPolicy Simulation &amp; Neutralization** | `$env:PSExecutionPolicyPreference = 'Bypass'` | `<# [NEUTRALIZED EXECUTION POLICY BYPASS: ENV_VAR] ... #>` or simulated scope matrix |
 | **Backtick Evasion Stripping** | `In`voke-Exp`ression 'Get-Process'` | `Invoke-Expression 'Get-Process'` |
 | **Format Operator (`-f`) Folding** | `'{1}{0}' -f 'World', 'Hello '` | `'Hello World'` |
 | **String Concatenation Reduction** | `'Down' + 'load' + 'String'` | `'DownloadString'` |
@@ -333,6 +334,30 @@ python -m src.cli sample.ps1 --generate-rules --rule-target dual
 python -m src.cli sample.ps1 --generate-rules --rule-output-dir rules/
 ```
 
+#### Runtime ExecutionPolicy Simulation &amp; Neutralization
+
+Simulate multi-scope policy precedence and neutralize execution policy evasion:
+
+```bash
+# Simulate runtime ExecutionPolicy and print forensic report
+python -m src.cli sample.ps1 --policy-analysis
+
+# Output full simulation state matrix and findings as structured JSON
+python -m src.cli sample.ps1 --policy-json
+
+# Export structured policy telemetry to JSON destination file
+python -m src.cli sample.ps1 --export-policy-json policy_report.json
+
+# Simulate against active Group Policy MachinePolicy enforcement
+python -m src.cli sample.ps1 --policy-analysis --machine-policy Restricted
+
+# Surgically neutralize bypass statements (comment wrapping)
+python -m src.cli sample.ps1 --neutralize-policy -o sanitized.ps1
+
+# Evaluate PowerShell CLI launch string for execution policy bypasses
+python -m src.cli --cli-eval "powershell.exe -ExecutionPolicy Bypass -NoProfile -File payload.ps1"
+```
+
 ### Python API
 
 ```python
@@ -413,6 +438,15 @@ from src.variable_scope import analyze_scopes, to_scope_report
 scope_summary = analyze_scopes("$global:url = 'http://evil.com/drop.exe'; & { $x = $global:url; iex $x }")
 print(to_scope_report(scope_summary))
 print(f"Total Scopes: {scope_summary.total_scopes}, Constant Candidates: {scope_summary.constant_candidates_count}")
+
+# 12. Runtime ExecutionPolicy Simulation & Neutralization
+from src.execution_policy import simulate_execution_policy, to_policy_report, parse_cli_policy_args
+policy_summary = simulate_execution_policy("$env:PSExecutionPolicyPreference = 'Bypass'")
+print(to_policy_report(policy_summary))
+print(f"Bypass Detected: {policy_summary.bypass_detected}, Effective: {policy_summary.final_effective.value}")
+
+cli_info = parse_cli_policy_args("powershell.exe -ExecutionPolicy Bypass -File payload.ps1")
+print(f"CLI Policy: {cli_info['execution_policy'].value}, Is Bypass: {cli_info['is_bypass']}")
 ```
 
 ---

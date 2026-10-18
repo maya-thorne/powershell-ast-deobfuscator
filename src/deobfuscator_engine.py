@@ -10,6 +10,7 @@ from .amsi_etw_detector import PowerShellAmsiEtwDetector
 from .amsi_etw_signatures import AmsiEtwFinding
 from .compression import DecompressedStreamLayer, PowerShellCompressionReducer
 from .encoded_command_unwrapper import EncodedCommandLayer, PowerShellEncodedCommandUnwrapper
+from .execution_policy import PolicySimulationSummary, simulate_execution_policy
 from .iex_unwrapper import IEXLayer
 from .lexer import PowerShellLexer
 from .normalizer import PowerShellNormalizer
@@ -24,7 +25,8 @@ class PowerShellDeobfuscator:
     pipeline simplification, recursive Base64 encoded command unraveling,
     recursive in-memory stream decompression (GzipStream / DeflateStream),
     variable scope chain analysis & constant propagation,
-    recursive IEX (Invoke-Expression) wrapper peeling, and AMSI/ETW bypass detection.
+    recursive IEX (Invoke-Expression) wrapper peeling, AMSI/ETW bypass detection,
+    and runtime ExecutionPolicy simulation & neutralization.
     """
 
     MAX_ITERATIONS = 10
@@ -41,6 +43,11 @@ class PowerShellDeobfuscator:
         neutralize_amsi_mode: str = "comment",
         inline_scoped_vars: bool = True,
         eliminate_dead_vars: bool = False,
+        simulate_policy: bool = False,
+        neutralize_policy: bool = False,
+        neutralize_policy_mode: str = "comment",
+        baseline_policy: str = "Restricted",
+        machine_policy: Optional[str] = None,
     ):
         self.symbols = symbols if symbols is not None else {}
         self.unwrap_subexpr = unwrap_subexpr
@@ -52,6 +59,11 @@ class PowerShellDeobfuscator:
         self.neutralize_amsi_mode = neutralize_amsi_mode
         self.inline_scoped_vars = inline_scoped_vars
         self.eliminate_dead_vars = eliminate_dead_vars
+        self.simulate_policy = simulate_policy
+        self.neutralize_policy = neutralize_policy
+        self.neutralize_policy_mode = neutralize_policy_mode
+        self.baseline_policy = baseline_policy
+        self.machine_policy = machine_policy
         self.encoded_unwrapper = PowerShellEncodedCommandUnwrapper(symbols=self.symbols)
         self.comp_reducer = PowerShellCompressionReducer(symbols=self.symbols)
         self.amsi_detector = PowerShellAmsiEtwDetector(symbols=self.symbols)
@@ -60,6 +72,7 @@ class PowerShellDeobfuscator:
         self.last_iex_layers: List[IEXLayer] = []
         self.last_amsi_etw_findings: List[AmsiEtwFinding] = []
         self.last_scope_summary: Optional[ScopeAnalysisSummary] = None
+        self.last_policy_summary: Optional[PolicySimulationSummary] = None
 
     def deobfuscate(self, script: str) -> str:
         """
@@ -72,6 +85,7 @@ class PowerShellDeobfuscator:
         self.last_iex_layers = []
         self.last_amsi_etw_findings = []
         self.last_scope_summary = None
+        self.last_policy_summary = None
 
         while iteration < self.MAX_ITERATIONS:
             iteration += 1
@@ -131,6 +145,18 @@ class PowerShellDeobfuscator:
                     current, mode=self.neutralize_amsi_mode
                 ).sanitized_script
 
+        # Pass 5: Runtime ExecutionPolicy simulation & optional neutralization
+        if self.simulate_policy or self.neutralize_policy:
+            self.last_policy_summary = simulate_execution_policy(
+                current,
+                baseline_policy=self.baseline_policy,
+                machine_policy=self.machine_policy,
+            )
+            if self.neutralize_policy and self.last_policy_summary.findings:
+                from .execution_policy import neutralize_policy_bypasses
+                current, _ = neutralize_policy_bypasses(
+                    current, mode=self.neutralize_policy_mode
+                )
 
         return current
 
@@ -216,3 +242,20 @@ class PowerShellDeobfuscator:
         from .variable_scope import analyze_scopes
 
         return analyze_scopes(script, symbols=self.symbols)
+
+    def get_policy_analysis(
+        self,
+        script: str,
+        baseline_policy: Optional[str] = None,
+        machine_policy: Optional[str] = None,
+    ) -> PolicySimulationSummary:
+        """
+        Executes static execution policy simulation and bypass analysis.
+        """
+        from .execution_policy import simulate_execution_policy
+
+        return simulate_execution_policy(
+            script,
+            baseline_policy=baseline_policy or self.baseline_policy,
+            machine_policy=machine_policy or self.machine_policy,
+        )

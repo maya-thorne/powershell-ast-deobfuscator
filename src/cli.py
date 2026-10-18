@@ -2,7 +2,6 @@
 Command-Line Interface (CLI) for PowerShell AST Deobfuscator.
 """
 
-import argparse
 import json
 import os
 import sys
@@ -21,239 +20,49 @@ from .benchmark import (
     to_markdown_report,
     to_text_report,
 )
+from .cli_args import build_cli_parser
 from .deobfuscator_engine import PowerShellDeobfuscator
+from .execution_policy import (
+    export_policy_json,
+    neutralize_policy_bypasses,
+    parse_cli_policy_args,
+    simulate_execution_policy,
+    to_policy_report,
+)
 from .lexer import PowerShellLexer
 from .parser import PowerShellParser
 from .webclient_tracer import carve_all_urls, extract_download_urls, trace_webclient
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        prog="powershell-ast-deobfuscator",
-        description="Compiler-Grade AST Parser, Visualizer & Multi-Pass Deobfuscator for Windows PowerShell",
-    )
-    parser.add_argument("input", nargs="?", default=None, help="PowerShell script code string or path to .ps1 file")
-    parser.add_argument("-o", "--output", help="Write output to destination file")
-    parser.add_argument("--tokens", action="store_true", help="Dump lexical token stream")
-    parser.add_argument(
-        "--ast",
-        action="store_true",
-        help="Visualize or export parsed AST (default: Unicode tree)",
-    )
-    parser.add_argument(
-        "--tree",
-        action="store_true",
-        help="Alias for --ast (visualize AST hierarchy)",
-    )
-    parser.add_argument(
-        "--format",
-        choices=["tree", "ascii", "mermaid", "json", "dot", "raw"],
-        default=None,
-        help="Output format for AST export (tree, ascii, mermaid, json, dot, raw)",
-    )
-    parser.add_argument("--mermaid", action="store_true", help="Export AST as Mermaid flowchart")
-    parser.add_argument("--dot", action="store_true", help="Export AST as Graphviz DOT graph")
-    parser.add_argument("--json", action="store_true", help="Export AST as structured JSON")
-    parser.add_argument("--ascii", action="store_true", help="Export AST as plain ASCII tree")
-    parser.add_argument("--stats", action="store_true", help="Display AST structural metrics and node counts")
-    parser.add_argument(
-        "--layers",
-        action="store_true",
-        help="Dump all recursive Base64 encoded command layers and forensic telemetry (JSON)",
-    )
-    parser.add_argument(
-        "--normalize-casing",
-        action="store_true",
-        default=True,
-        help="Normalize casing of cmdlets, keywords, types, members, and variables (default: True)",
-    )
-    parser.add_argument(
-        "--no-normalize-casing",
-        dest="normalize_casing",
-        action="store_false",
-        help="Disable casing normalization",
-    )
-    parser.add_argument(
-        "--unwrap-subexpr",
-        action="store_true",
-        default=True,
-        help="Unbox redundant subexpressions and expandable strings $(...) (default: True)",
-    )
-    parser.add_argument(
-        "--no-unwrap-subexpr",
-        dest="unwrap_subexpr",
-        action="store_false",
-        help="Disable subexpression unwrapping",
-    )
-    parser.add_argument(
-        "--extract-b64",
-        action="store_true",
-        help="Extract and print innermost Base64 decoded payload script directly",
-    )
-    parser.add_argument(
-        "--carve-urls",
-        action="store_true",
-        help="Extract and dump all carved remote payload download targets as structured JSON",
-    )
-    parser.add_argument(
-        "--urls",
-        action="store_true",
-        help="Extract and print unique canonical remote payload URLs (one per line)",
-    )
-    parser.add_argument(
-        "--trace-iex",
-        action="store_true",
-        help="Extract and dump all recursive IEX (Invoke-Expression) wrapper layers as structured JSON",
-    )
-    parser.add_argument(
-        "--no-unwrap-iex",
-        dest="unwrap_iex",
-        action="store_false",
-        default=True,
-        help="Disable automatic IEX wrapper peeling",
-    )
-    parser.add_argument(
-        "--decompress-streams",
-        action="store_true",
-        default=True,
-        help="Decompress in-memory GzipStream, DeflateStream, and BrotliStream payloads (default: True)",
-    )
-    parser.add_argument(
-        "--no-decompress-streams",
-        dest="decompress_streams",
-        action="store_false",
-        help="Disable in-memory compressed stream deobfuscation",
-    )
-    parser.add_argument(
-        "--trace-streams",
-        action="store_true",
-        help="Extract and dump in-memory compressed stream layer telemetry as structured JSON",
-    )
-    parser.add_argument(
-        "--scope-analysis",
-        action="store_true",
-        help="Perform variable scope chain and lifecycle analysis, outputting human-readable report",
-    )
-    parser.add_argument(
-        "--scope-json",
-        action="store_true",
-        help="Dump variable scope hierarchy and symbol tables as structured JSON",
-    )
-    parser.add_argument(
-        "--export-scope-json",
-        metavar="PATH",
-        help="Export structured variable scope analysis to a JSON destination file",
-    )
-    parser.add_argument(
-        "--no-inline-vars",
-        dest="inline_scoped_vars",
-        action="store_false",
-        default=True,
-        help="Disable automatic scoped constant variable inlining",
-    )
-    parser.add_argument(
-        "--eliminate-dead-vars",
-        action="store_true",
-        default=False,
-        help="Eliminate dead variable assignments that have zero side-effects",
-    )
-    parser.add_argument(
-        "--detect-amsi",
-        action="store_true",
-        help="Detect AMSI and ETW bypass signatures and dump findings as structured JSON",
-    )
-    parser.add_argument(
-        "--neutralize-amsi",
-        action="store_true",
-        help="Neutralize and sanitize detected AMSI and ETW bypass code blocks",
-    )
-    parser.add_argument(
-        "--neutralize-mode",
-        choices=["comment", "strip", "invert"],
-        default="comment",
-        help="Sanitization mode for --neutralize-amsi: comment (default), strip, or invert",
-    )
-    parser.add_argument(
-        "--amsi-signatures",
-        action="store_true",
-        help="Dump all registered AMSI and ETW bypass detection signatures as structured JSON",
-    )
-    parser.add_argument(
-        "--benchmark",
-        action="store_true",
-        help="Execute automated deobfuscation accuracy benchmark across 30-sample corpus",
-    )
-    parser.add_argument(
-        "--benchmark-sample",
-        metavar="ID",
-        help="Execute benchmark harness for a specific sample ID (e.g., SAMPLE-01)",
-    )
-    parser.add_argument(
-        "--benchmark-category",
-        metavar="CATEGORY",
-        help="Execute benchmark harness for all samples in a category",
-    )
-    parser.add_argument(
-        "--benchmark-report",
-        metavar="PATH",
-        help="Destination file path to persist generated benchmark report",
-    )
-    parser.add_argument(
-        "--benchmark-format",
-        choices=["text", "json", "markdown"],
-        default="text",
-        help="Output format for benchmark report (default: text)",
-    )
-    parser.add_argument(
-        "--generate-yara",
-        action="store_true",
-        help="Synthesize and output a YARA 4.x detection rule for the script payload",
-    )
-    parser.add_argument(
-        "--generate-sigma",
-        action="store_true",
-        help="Synthesize and output a Sigma YAML detection rule for the script payload",
-    )
-    parser.add_argument(
-        "--generate-rules",
-        action="store_true",
-        help="Synthesize both YARA and Sigma threat hunting rules and dump telemetry JSON",
-    )
-    parser.add_argument(
-        "--rule-name",
-        default=None,
-        help="Custom rule name identifier for generated YARA/Sigma detection rules",
-    )
-    parser.add_argument(
-        "--rule-title",
-        default=None,
-        help="Custom rule title for generated Sigma detection rules",
-    )
-    parser.add_argument(
-        "--rule-target",
-        choices=["deobfuscated", "raw", "dual"],
-        default="deobfuscated",
-        help="Target scope for rule synthesis: deobfuscated (default), raw, or dual",
-    )
-    parser.add_argument(
-        "--sigma-logsource",
-        choices=["scriptblock", "process_creation", "module"],
-        default="scriptblock",
-        help="Sigma logsource target: scriptblock (default, EID 4104), process_creation (EID 4688), or module (EID 4103)",
-    )
-    parser.add_argument(
-        "--yara-condition",
-        choices=["balanced", "strict", "loose", "categorized"],
-        default="balanced",
-        help="YARA condition synthesis style: balanced (default), strict, loose, or categorized",
-    )
-    parser.add_argument(
-        "--rule-output-dir",
-        default=None,
-        help="Destination directory to save generated .yar and .yml rule files",
-    )
-
+    parser = build_cli_parser()
     args = parser.parse_args()
+
+    # 0. Handle standalone CLI launch argument evaluation mode (--cli-eval)
+    if args.cli_eval:
+        parsed_cli = parse_cli_policy_args(args.cli_eval)
+        output_text = json.dumps(
+            {
+                "command_line": args.cli_eval,
+                "execution_policy": parsed_cli["execution_policy"].value,
+                "scope": parsed_cli["scope"].value,
+                "has_policy_flag": parsed_cli["has_policy_flag"],
+                "is_bypass": parsed_cli["is_bypass"],
+                "has_command_flag": parsed_cli["has_command_flag"],
+                "has_encoded_flag": parsed_cli["has_encoded_flag"],
+                "has_stdin_flag": parsed_cli["has_stdin_flag"],
+                "findings": [f.to_dict() for f in parsed_cli["findings"]],
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as f:
+                f.write(output_text + "\n")
+            print(f"[+] CLI evaluation saved to: {args.output}")
+        else:
+            print(output_text)
+        return
 
     # Handle benchmark execution mode
     if args.benchmark or args.benchmark_sample or args.benchmark_category:
@@ -279,7 +88,7 @@ def main() -> None:
         else:
             report_content = to_text_report(benchmark_summary)
 
-        if args.benchmark_report:
+        if getattr(args, "benchmark_report", None):
             save_report(report_content, args.benchmark_report)
             print(f"[+] Benchmark report ({args.benchmark_format}) saved to: {args.benchmark_report}")
         else:
@@ -406,7 +215,6 @@ def main() -> None:
                 ensure_ascii=False,
             )
         else:
-            # --extract-b64: dump decoded content of innermost layer or deobfuscated result
             output_text = layers[-1].decoded_content if layers else result
 
         if args.output:
@@ -660,6 +468,36 @@ def main() -> None:
             print(report)
         return
 
+    # 7.6. Runtime ExecutionPolicy simulation & bypass analysis
+    if args.policy_analysis or args.policy_json or args.export_policy_json:
+        summary = simulate_execution_policy(
+            script_text,
+            baseline_policy=args.baseline_policy,
+            machine_policy=args.machine_policy,
+        )
+        if args.policy_json or args.export_policy_json:
+            json_text = export_policy_json(summary)
+            if args.export_policy_json:
+                with open(args.export_policy_json, "w", encoding="utf-8") as f:
+                    f.write(json_text + "\n")
+                print(f"[+] Policy simulation JSON exported to: {args.export_policy_json}")
+            elif args.output:
+                with open(args.output, "w", encoding="utf-8") as f:
+                    f.write(json_text + "\n")
+                print(f"[+] Policy simulation JSON saved to: {args.output}")
+            else:
+                print(json_text)
+            return
+
+        report = to_policy_report(summary)
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as f:
+                f.write(report + "\n")
+            print(f"[+] Policy simulation report saved to: {args.output}")
+        else:
+            print(report)
+        return
+
     # 8. Default: Full deobfuscation engine
     engine = PowerShellDeobfuscator(
         unwrap_subexpr=args.unwrap_subexpr,
@@ -670,6 +508,10 @@ def main() -> None:
         neutralize_amsi_mode=args.neutralize_mode,
         inline_scoped_vars=args.inline_scoped_vars,
         eliminate_dead_vars=args.eliminate_dead_vars,
+        neutralize_policy=args.neutralize_policy,
+        neutralize_policy_mode=args.neutralize_policy_mode,
+        baseline_policy=args.baseline_policy,
+        machine_policy=args.machine_policy,
     )
     result = engine.deobfuscate(script_text)
 

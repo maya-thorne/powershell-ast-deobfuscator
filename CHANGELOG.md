@@ -5,6 +5,45 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2026-10-18
+
+### Added
+- Runtime PowerShell ExecutionPolicy simulator and static bypass analysis engine:
+  - Policy models, scopes, and telemetry definitions (`src/policy_models.py`):
+    - Policy permission levels: `ExecutionPolicyLevel` (`RESTRICTED`, `ALL_SIGNED`, `REMOTE_SIGNED`, `UNRESTRICTED`, `BYPASS`, `UNDEFINED`) with alias parsing and permission checking.
+    - Execution policy scopes: `PolicyScope` (`MACHINE_POLICY`, `USER_POLICY`, `PROCESS`, `CURRENT_USER`, `LOCAL_MACHINE`) with precedence ranking and elevation requirements.
+    - Bypass technique taxonomy: `BypassTechnique` (`CLI_FLAG`, `ENV_VAR`, `CMDLET_SET_POLICY`, `REFLECTION_AUTH_MGR`, `ADS_ZONE_STRIP`, `STDIN_PIPELINE`, `COMMAND_ARG`, `ENCODED_COMMAND`, `DOWNLOAD_CRADLE_MEMORY`, `REGISTRY_TAMPERING`).
+    - Security finding data model: `PolicyFinding` recording technique, severity (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`), target level, target scope, statement index, line number, code snippet, and administrator elevation requirements.
+    - Multi-scope state table: `ScopeState` implementing authentic PowerShell precedence rules (`MachinePolicy > UserPolicy > Process > CurrentUser > LocalMachine > Default`) and detecting Group Policy overrides.
+    - State transition telemetry: `PolicyTransition` tracking statement-level policy changes across script execution.
+    - Comprehensive simulation summary: `PolicySimulationSummary` capturing initial/final states, effective policy levels, bypass indicators, privilege escalation flags, risk score (0-100), and mitigations.
+  - Multi-scope static simulator and bypass discovery engine (`src/policy_simulator.py`):
+    - CLI launch argument parser supporting parameter prefix truncation (`-ep`, `-ex`, `-executi`, `-executionpolicy`), command arguments (`-c`, `-command`), encoded commands (`-e`, `-enc`), and stdin redirection (`powershell -`).
+    - Environment variable analysis detecting direct assignments (`$env:PSExecutionPolicyPreference = '...'`) and static method calls (`[System.Environment]::SetEnvironmentVariable`).
+    - Cmdlet analysis identifying `Set-ExecutionPolicy` invocations, parameter bindings (`-Scope`, `-ExecutionPolicy`, `-Force`), and checking elevation requirements against registry keys.
+    - In-memory reflection detection tracking stealth `AuthorizationManager` and `ExecutionContext` tampering (`cachedContext`, `System.Management.Automation.AuthorizationManager = $null`) that bypasses host policies.
+    - NTFS Alternate Data Stream (ADS) analysis detecting `Unblock-File` and `Zone.Identifier` stripping used to bypass `RemoteSigned` policies on downloaded scripts.
+    - Direct registry manipulation detection targeting `HKCU`/`HKLM` PowerShell execution policy keys.
+  - Surgical policy bypass neutralizer (`src/policy_reducer.py`):
+    - Supports `comment` wrapping (`<# [NEUTRALIZED EXECUTION POLICY BYPASS] ... #>`), `strip` (complete statement removal), and `invert` (replaces permissive flags with safe `Restricted` settings).
+  - Unified public facade and forensic reporting (`src/execution_policy.py`):
+    - Exposes `simulate_execution_policy`, `detect_policy_bypasses`, `parse_cli_policy_args`, `neutralize_policy_bypasses`, `to_policy_report`, and `export_policy_json`.
+  - Deobfuscator engine integration (`src/deobfuscator_engine.py`):
+    - Added Pass 5 for runtime ExecutionPolicy simulation and neutralization.
+    - Added `get_policy_analysis()` method and `last_policy_summary` telemetry to `PowerShellDeobfuscator`.
+- Modular CLI argument parser and execution policy switches (`src/cli_args.py`, `src/cli.py`):
+  - Extracted declarative argument parser into modular `src/cli_args.py` keeping `src/cli.py` concise and under modular limits.
+  - Added `--policy-analysis`: outputs human-readable execution policy simulation report with matrix and transitions.
+  - Added `--policy-json`: outputs structured simulation telemetry as JSON.
+  - Added `--export-policy-json`: writes structured simulation JSON to a specified destination file.
+  - Added `--baseline-policy`: specifies default fallback execution policy for simulation (default: Restricted).
+  - Added `--machine-policy`: simulates active Group Policy Computer Configuration (MachinePolicy).
+  - Added `--neutralize-policy`: sanitizes detected policy bypass statements.
+  - Added `--neutralize-policy-mode`: specifies sanitization mode (`comment`, `strip`, `invert`).
+  - Added `--cli-eval`: evaluates PowerShell CLI launch strings for execution policy bypass flags.
+- Comprehensive unit and integration test coverage (`tests/test_execution_policy.py`):
+  - 30 new unit and integration tests covering scope precedence rules, CLI argument parsing, environment variable tampering, cmdlet invocations, in-memory reflection, ADS zone stripping, neutralization modes, JSON export, and deobfuscator integration (expanding test suite to 472 tests, 100% pass).
+
 ## [0.17.0] - 2026-10-17
 
 ### Added

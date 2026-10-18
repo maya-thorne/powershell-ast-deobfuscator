@@ -286,4 +286,50 @@ def build_cli_parser() -> argparse.ArgumentParser:
         help="Destination directory to save generated .yar and .yml rule files",
     )
 
+    # Regression Stress Fuzzing Harness Options
+    parser.add_argument(
+        "--fuzz",
+        action="store_true",
+        help="Run regression stress fuzzing harness across randomized mutation test cases",
+    )
+    parser.add_argument(
+        "--fuzz-iterations",
+        type=int,
+        default=50,
+        metavar="N",
+        help="Number of fuzzing test iterations to execute (default: 50)",
+    )
+    parser.add_argument(
+        "--fuzz-seed",
+        type=int,
+        default=42,
+        metavar="SEED",
+        help="Random seed for deterministic fuzzing reproducibility (default: 42)",
+    )
+    parser.add_argument(
+        "--fuzz-strategy",
+        default=None,
+        metavar="STRATEGY",
+        help="Specific mutation strategy to test (e.g. backtick_injection, nesting_stress, syntax_corruption)",
+    )
+    parser.add_argument(
+        "--fuzz-format",
+        choices=["text", "json", "markdown"],
+        default="text",
+        help="Output format for fuzzing report (default: text)",
+    )
+    parser.add_argument(
+        "--fuzz-report",
+        default=None,
+        metavar="PATH",
+        help="Destination file path to save fuzzing harness report",
+    )
+    parser.add_argument(
+        "--fuzz-no-shrink",
+        dest="fuzz_shrink",
+        action="store_false",
+        default=True,
+        help="Disable delta-debugging crash reproducer shrinking",
+    )
+
     return parser

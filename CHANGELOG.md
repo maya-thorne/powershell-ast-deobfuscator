@@ -5,6 +5,41 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] - 2026-10-18
+
+### Added
+- Deobfuscation regression stress fuzzing harness and mutation engine:
+  - Fuzzing models, strategies, and telemetry schema (`src/fuzz_models.py`):
+    - Mutation strategy taxonomy: `MutationStrategy` with 14 distinct techniques (`BACKTICK_INJECTION`, `CASE_SCRAMBLE`, `WHITESPACE_MUTATION`, `COMMENT_INJECTION`, `NESTING_STRESS`, `FORMAT_STRING_SHUFFLE`, `STRING_SPLIT_CONCAT`, `ARRAY_MANGLE`, `TYPE_MANGLE`, `UNICODE_EDGE`, `SYNTAX_CORRUPTION`, `DECOY_INJECTION`, `RANGE_STRESS`, `PIPE_CHAIN`).
+    - Execution outcome taxonomy: `FuzzStatus` (`PASS`, `HANDLED_SYNTAX_ERROR`, `UNEXPECTED_CRASH`, `TIMEOUT`, `REGRESSION`).
+    - Severity classification: `FuzzSeverity` (`INFO`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`).
+    - Mutation record tracking: `FuzzMutationRecord` recording mutation strategy, description, character offset, and strategy metadata.
+    - Test case schema: `FuzzTestCase` capturing test ID, seed, base sample, original code, mutated code, and mutation trace.
+    - Execution telemetry: `FuzzExecutionResult` recording duration, AST node count, tree depth, idempotency status, exceptions, and minimal reproducer scripts.
+    - Aggregated harness summary: `FuzzSummary` with total cases, clean pass counts, handled errors, unexpected crashes, pass rates, and JSON serialization.
+  - Deterministic script mutator engine (`src/fuzz_mutator.py`):
+    - Reproducible pseudo-random sequence generator using seed-based RNG.
+    - 14 mutation transforms: backtick injection, character-level case scrambling, whitespace/newline/CRLF variation, inline and multiline comment injection, multi-level nesting stress (`$()`, `()`, `@()`), format string (`-f`) shuffling, string literal splitting and concatenation (`+`), array expression and unary comma mangling, type accelerator obfuscation, Unicode edge cases (BOM, zero-width space `\u200B`, non-breaking space `\u00A0`), syntax corruption injection, dead code/decoy injection, range operator stress, and pipeline stage chaining.
+    - Adversarial synthetic template generator synthesizing deeply nested and scrambled constructs from scratch.
+  - Regression fuzzing batch runner and delta-debugging shrinker (`src/fuzz_runner.py`):
+    - Curated base corpus integrating representative real-world samples and built-in attack patterns.
+    - Pipeline runner exercising lexical scanning, syntax parsing, multi-pass AST normalization, and deobfuscation engine convergence.
+    - Fixed-point stability and idempotency verification validating that secondary passes converge without crashes or oscillations.
+    - Delta-debugging reproducer shrinker isolating the minimal lines, tokens, and characters triggering unexpected crashes.
+    - Multi-format report generators producing structured plain text, GitHub-flavored Markdown, and JSON telemetry reports with persistent file saving.
+  - Unified public facade (`src/fuzzing.py`):
+    - Exposes `run_fuzz_harness`, `mutate_script`, `fuzz_script`, `PowerShellScriptMutator`, `PowerShellFuzzRunner`, and report utilities.
+- Command-line interface switches for automated fuzz testing (`src/cli_args.py`, `src/cli.py`):
+  - Added `--fuzz`: executes regression stress fuzzing harness across randomized mutation test cases.
+  - Added `--fuzz-iterations`: sets the number of fuzzing test iterations to run (default: 50).
+  - Added `--fuzz-seed`: specifies random seed for deterministic fuzzing reproducibility (default: 42).
+  - Added `--fuzz-strategy`: restricts mutation passes to a specific strategy.
+  - Added `--fuzz-format`: selects report format (`text`, `json`, `markdown`).
+  - Added `--fuzz-report`: saves generated fuzz report to a destination file.
+  - Added `--fuzz-no-shrink`: disables delta-debugging crash reproducer minimization.
+- Comprehensive unit and integration test coverage (`tests/test_fuzzing.py`):
+  - 29 new unit and integration tests covering all 14 mutation strategies, deterministic seed reproduction, graceful syntax error handling, delta-debugging shrinker, batch harness execution, strategy filtering, text/markdown/json report formatting, file persistence, public facade functions, and CLI flags (expanding test suite to 501 tests, 100% pass).
+
 ## [0.18.0] - 2026-10-18
 
 ### Added

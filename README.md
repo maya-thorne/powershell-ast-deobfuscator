@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.18.0-blue.svg?style=flat-square" alt="Release v0.18.0" /></a>
+  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.19.0-blue.svg?style=flat-square" alt="Release v0.19.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MT--SRL-emerald.svg?style=flat-square" alt="License MT-SRL" /></a>
   <a href="ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-Active-purple.svg?style=flat-square" alt="Roadmap Active" /></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Policy-red.svg?style=flat-square" alt="Security Policy" /></a>
@@ -65,6 +65,7 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 21. **In-Memory Compressed Stream Decompression (`src/compression_reducer.py`, `src/compression_decompressor.py`)**: Statically unpacks .NET in-memory compressed streams (`[IO.Compression.GZipStream]`, `[IO.Compression.DeflateStream]`, `BrotliStream`) wrapped around `[IO.MemoryStream]`, `[Convert]::FromBase64String`, byte arrays, and `[IO.StreamReader]::ReadToEnd()` or `[System.Text.Encoding]::GetString()`, resolving multi-step variable assignment chains, RFC 1951 raw deflate / RFC 1952 gzip payloads, multi-encoding auto-detection, and memory buffer zeroization.
 22. **Variable Scope Chain &amp; Lifecycle Analysis (`src/scope_chain.py`, `src/variable_scope_inliner.py`)**: Hierarchical scope frame management (Global, Script, Local, Private, Function, ScriptBlock), private variable boundary isolation, variable shadowing detection, Def-Use chain tracking, cmdlet-based variable mapping (`Set-Variable`, `Get-Variable`, `New-Variable`, `Clear-Variable`, `Remove-Variable`), constant propagation respecting lexical scopes, and side-effect-free dead variable assignment elimination.
 23. **Runtime ExecutionPolicy Simulation &amp; Neutralization (`src/policy_simulator.py`, `src/policy_reducer.py`)**: Simulates the 5 PowerShell configuration scopes (MachinePolicy GPO, UserPolicy GPO, Process environment, CurrentUser HKCU, LocalMachine HKLM), evaluates precedence rules, identifies execution policy bypasses (`-ExecutionPolicy` CLI flags, `$env:PSExecutionPolicyPreference`, `Set-ExecutionPolicy` cmdlets, in-memory reflection `AuthorizationManager` tampering, and Alternate Data Streams `Zone.Identifier` stripping), calculates threat risk metrics, and surgically neutralizes bypass commands (comment wrapping, statement stripping, or policy inversion).
+24. **Regression Stress Fuzzing &amp; Mutation Engine (`src/fuzz_mutator.py`, `src/fuzz_runner.py`, `src/fuzzing.py`)**: Tests parser, lexer, normalizer, and deobfuscation engine resilience against 14 randomized and adversarial mutation strategies (backtick evasion, casing permutations, format string shuffling, string chunk concatenation, deep nesting stress, unicode edges, and dead code injection) with delta-debugging reproducer shrinking, idempotency verification, and multi-format reporting.
 
 ---
 
@@ -73,6 +74,7 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 
 | Capability | Obfuscated Example | Deobfuscated Output |
 |---|---|---|
+| **Regression Stress Fuzzing Harness** | `pwsh-ast --fuzz --fuzz-iterations 50` | 14 mutation strategies, delta-debugging shrinker &amp; zero unhandled crash verification |
 | **ExecutionPolicy Simulation &amp; Neutralization** | `$env:PSExecutionPolicyPreference = 'Bypass'` | `<# [NEUTRALIZED EXECUTION POLICY BYPASS: ENV_VAR] ... #>` or simulated scope matrix |
 | **Backtick Evasion Stripping** | `In`voke-Exp`ression 'Get-Process'` | `Invoke-Expression 'Get-Process'` |
 | **Format Operator (`-f`) Folding** | `'{1}{0}' -f 'World', 'Hello '` | `'Hello World'` |
@@ -447,6 +449,12 @@ print(f"Bypass Detected: {policy_summary.bypass_detected}, Effective: {policy_su
 
 cli_info = parse_cli_policy_args("powershell.exe -ExecutionPolicy Bypass -File payload.ps1")
 print(f"CLI Policy: {cli_info['execution_policy'].value}, Is Bypass: {cli_info['is_bypass']}")
+
+# 13. Regression Stress Fuzzing & Mutation Testing
+from src.fuzzing import run_fuzz_harness, to_text_report
+fuzz_summary = run_fuzz_harness(iterations=25, seed=42)
+print(to_text_report(fuzz_summary))
+print(f"Safety Pass Rate: {fuzz_summary.pass_rate}%, Unexpected Crashes: {fuzz_summary.unexpected_crashes}")
 ```
 
 ---

@@ -160,9 +160,35 @@ from .execution_policy import (
     simulate_execution_policy,
     to_policy_report,
 )
+from .fuzzing import (
+    FuzzExecutionResult,
+    FuzzMutationRecord,
+    FuzzSeverity,
+    FuzzStatus,
+    FuzzSummary,
+    FuzzTestCase,
+    MutationStrategy,
+    PowerShellFuzzRunner,
+    PowerShellScriptMutator,
+    fuzz_script,
+    mutate_script,
+    run_fuzz_harness,
+)
 
-__version__ = "0.18.0"
+__version__ = "0.19.0"
 __all__ = [
+    "MutationStrategy",
+    "FuzzStatus",
+    "FuzzSeverity",
+    "FuzzMutationRecord",
+    "FuzzTestCase",
+    "FuzzExecutionResult",
+    "FuzzSummary",
+    "PowerShellScriptMutator",
+    "PowerShellFuzzRunner",
+    "run_fuzz_harness",
+    "mutate_script",
+    "fuzz_script",
     "ExecutionPolicyLevel",
     "PolicyScope",
     "BypassTechnique",

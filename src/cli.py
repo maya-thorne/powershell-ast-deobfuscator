@@ -95,6 +95,55 @@ def main() -> None:
             print(report_content)
         return
 
+    # Handle fuzzing harness execution mode
+    if getattr(args, "fuzz", False):
+        from .fuzzing import (
+            MutationStrategy,
+            PowerShellFuzzRunner,
+        )
+
+        strategies = None
+        if args.fuzz_strategy:
+            try:
+                strategies = [MutationStrategy(args.fuzz_strategy)]
+            except ValueError:
+                sys.stderr.write(f"[-] Error: Unknown fuzzing strategy '{args.fuzz_strategy}'.\n")
+                sys.exit(1)
+
+        custom_input = None
+        if args.input:
+            if os.path.isfile(args.input):
+                with open(args.input, "r", encoding="utf-8", errors="ignore") as f:
+                    custom_input = [f.read()]
+            else:
+                custom_input = [args.input]
+
+        runner = PowerShellFuzzRunner(seed=args.fuzz_seed, enable_shrink=args.fuzz_shrink)
+        summary = runner.run_fuzz_harness(
+            iterations=args.fuzz_iterations,
+            strategies=strategies,
+            use_corpus=(custom_input is None),
+            custom_samples=custom_input,
+        )
+
+        if args.fuzz_format == "json":
+            fuzz_output = runner.to_json_report(summary)
+        elif args.fuzz_format == "markdown":
+            fuzz_output = runner.to_markdown_report(summary)
+        else:
+            fuzz_output = runner.to_text_report(summary)
+
+        if args.fuzz_report:
+            runner.save_report(fuzz_output, args.fuzz_report)
+            print(f"[+] Fuzzing harness report ({args.fuzz_format}) saved to: {args.fuzz_report}")
+        else:
+            try:
+                print(fuzz_output)
+            except UnicodeEncodeError:
+                sys.stdout.buffer.write(fuzz_output.encode("utf-8", errors="replace"))
+                sys.stdout.buffer.write(b"\n")
+        return
+
     # Handle AMSI/ETW signatures dump mode
     if args.amsi_signatures:
         signatures_data = [s.to_dict() for s in DEFAULT_RULESET.all_signatures()]

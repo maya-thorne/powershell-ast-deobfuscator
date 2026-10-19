@@ -332,4 +332,76 @@ def build_cli_parser() -> argparse.ArgumentParser:
         help="Disable delta-debugging crash reproducer shrinking",
     )
 
+    # Batch Forensic Automation & Mass Script Scanning
+    parser.add_argument(
+        "--batch",
+        "--scan-dir",
+        dest="batch_dir",
+        metavar="DIR",
+        default=None,
+        help="Batch scan and analyze all PowerShell scripts in the specified directory",
+    )
+    parser.add_argument(
+        "--batch-output",
+        metavar="DIR",
+        default=None,
+        help="Output directory to export deobfuscated scripts and artifacts preserving directory structure",
+    )
+    parser.add_argument(
+        "--batch-workers",
+        type=int,
+        default=4,
+        metavar="N",
+        help="Number of concurrent worker threads for parallel scanning (default: 4)",
+    )
+    parser.add_argument(
+        "--batch-exts",
+        default=".ps1,.psm1,.psd1,.bat,.cmd,.txt",
+        metavar="EXTS",
+        help="Comma-separated file extensions to scan (default: .ps1,.psm1,.psd1,.bat,.cmd,.txt)",
+    )
+    parser.add_argument(
+        "--batch-recursive",
+        action="store_true",
+        default=True,
+        help="Recursively scan subdirectories (default: True)",
+    )
+    parser.add_argument(
+        "--no-batch-recursive",
+        dest="batch_recursive",
+        action="store_false",
+        help="Disable recursive scanning (scan target directory only)",
+    )
+    parser.add_argument(
+        "--batch-format",
+        choices=["text", "json", "markdown", "csv"],
+        default="text",
+        help="Output format for batch report (default: text)",
+    )
+    parser.add_argument(
+        "--batch-report",
+        metavar="PATH",
+        default=None,
+        help="Destination file path to save the batch scan report",
+    )
+    parser.add_argument(
+        "--batch-timeout",
+        type=float,
+        default=30.0,
+        metavar="SECONDS",
+        help="Per-script deobfuscation timeout in seconds (default: 30.0)",
+    )
+    parser.add_argument(
+        "--batch-export-iocs",
+        action="store_true",
+        default=False,
+        help="Export all extracted IoCs (URLs, C2 endpoints, AMSI hashes) as structured JSON",
+    )
+    parser.add_argument(
+        "--batch-min-risk",
+        choices=["clean", "suspicious", "malicious"],
+        default="clean",
+        help="Minimum risk tier to include in report/export: clean (default), suspicious, malicious",
+    )
+
     return parser

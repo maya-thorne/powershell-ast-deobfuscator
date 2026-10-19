@@ -174,9 +174,33 @@ from .fuzzing import (
     mutate_script,
     run_fuzz_harness,
 )
+from .batch_models import (
+    BatchScanOptions,
+    BatchSummary,
+    FileScanResult,
+    RiskTier,
+    ScanStatus,
+)
+from .batch_scanner import PowerShellBatchScanner
+from .batch_runner import PowerShellBatchRunner
+from .batch import (
+    run_batch_cli,
+    scan_directory,
+    scan_files,
+)
 
-__version__ = "0.19.0"
+__version__ = "0.20.0"
 __all__ = [
+    "ScanStatus",
+    "RiskTier",
+    "FileScanResult",
+    "BatchScanOptions",
+    "BatchSummary",
+    "PowerShellBatchScanner",
+    "PowerShellBatchRunner",
+    "scan_directory",
+    "scan_files",
+    "run_batch_cli",
     "MutationStrategy",
     "FuzzStatus",
     "FuzzSeverity",

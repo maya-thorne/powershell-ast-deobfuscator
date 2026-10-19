@@ -64,6 +64,14 @@ def main() -> None:
             print(output_text)
         return
 
+    # Handle batch directory / mass script scanning mode (--batch / --scan-dir)
+    if getattr(args, "batch_dir", None):
+        from .batch import run_batch_cli
+        exit_code = run_batch_cli(args)
+        if exit_code != 0:
+            sys.exit(exit_code)
+        return
+
     # Handle benchmark execution mode
     if args.benchmark or args.benchmark_sample or args.benchmark_category:
         if args.benchmark_sample:

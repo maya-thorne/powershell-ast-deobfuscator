@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.19.0-blue.svg?style=flat-square" alt="Release v0.19.0" /></a>
+  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.20.0-blue.svg?style=flat-square" alt="Release v0.20.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MT--SRL-emerald.svg?style=flat-square" alt="License MT-SRL" /></a>
   <a href="ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-Active-purple.svg?style=flat-square" alt="Roadmap Active" /></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Policy-red.svg?style=flat-square" alt="Security Policy" /></a>
@@ -180,9 +180,21 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 | `src/variable_lifecycle_tracker.py` | AST traversal engine tracking assignments, reads, loops, functions, and variable cmdlets |
 | `src/variable_scope_inliner.py` | Scope-aware constant propagation, cmdlet unboxing &amp; dead variable elimination |
 | `src/variable_scope.py` | Unified public facade for variable scope analysis, constant inlining, and telemetry export |
+| `src/policy_models.py` | PowerShell execution policy enums, scopes, findings, scope state matrix & transition telemetry |
+| `src/policy_simulator.py` | Multi-scope execution policy simulator, CLI flag parser, GPO precedence solver & bypass scanner |
+| `src/policy_reducer.py` | Execution policy bypass surgical neutralizer (comment, strip, invert) & statement rewriter |
+| `src/execution_policy.py` | Unified public facade for policy simulation, bypass detection, neutralization, and reporting |
+| `src/fuzz_models.py` | Mutation strategy enums, fuzz test case schemas, execution result telemetry & summary models |
+| `src/fuzz_mutator.py` | Deterministic script mutator supporting 14 lexical, syntactic & structural mutation strategies |
+| `src/fuzz_runner.py` | Automated regression fuzzing harness, delta-debugging shrinker & multi-format report generator |
+| `src/fuzzing.py` | Unified public facade for regression stress fuzzing, script mutation & report formatting |
+| `src/batch_models.py` | Forensic scan status, risk tier enums, per-file telemetry schemas, batch options & summary formatters |
+| `src/batch_scanner.py` | Safe directory traversal, symlink loop protection, extension filtering, max size guards & multi-encoding reader |
+| `src/batch_runner.py` | Multithreaded parallel analyzer, per-script timeout protection, error isolation, risk scoring & report generators |
+| `src/batch.py` | Unified public facade for batch directory and file scanning, and CLI execution dispatcher |
 | `src/deobfuscator_engine.py` | Multi-pass fixed-point convergence engine with AMSI/ETW bypass integration, variable scope inlining &amp; threat rule generation |
-| `src/cli.py` | Command-line interface with AST visualization, benchmark runner, URL carver, AMSI/ETW scanner, scope analyzer, YARA/Sigma synthesizer &amp; forensic telemetry |
-| `tests/` | Comprehensive test suite (442 unit tests) covering lexer, parser, normalizer, crypto, URL carving, IEX peeling, AMSI/ETW detector, threat rules, compressed streams &amp; variable scope analysis |
+| `src/cli.py` | Command-line interface with AST visualization, benchmark runner, URL carver, AMSI/ETW scanner, scope analyzer, YARA/Sigma synthesizer, fuzzing runner &amp; batch directory scanner |
+| `tests/` | Comprehensive test suite (517 unit tests) covering lexer, parser, normalizer, crypto, URL carving, IEX peeling, AMSI/ETW detector, threat rules, compressed streams, variable scope analysis, policy simulator, fuzzing &amp; batch scanner |
 | `ROADMAP.md` | Public development milestones and engineering roadmap |
 | `SECURITY.md` | Vulnerability disclosure policy and reporting process |
 
@@ -197,10 +209,10 @@ Run the full automated test suite:
 python -m unittest discover tests -v
 ```
 
-All 418 unit tests execute with zero failures:
+All 517 unit tests execute with zero failures:
 
 ```text
-Ran 418 tests in 0.781s
+Ran 517 tests in 3.345s
 
 OK
 ```
@@ -360,6 +372,27 @@ python -m src.cli sample.ps1 --neutralize-policy -o sanitized.ps1
 python -m src.cli --cli-eval "powershell.exe -ExecutionPolicy Bypass -NoProfile -File payload.ps1"
 ```
 
+#### Batch Forensic Automation & Mass Script Scanning
+
+Scan an entire directory of PowerShell scripts in parallel, perform automated threat analysis, score risk tiers, export deobfuscated payloads, and extract IoCs:
+
+```bash
+# Scan all scripts in a directory using 8 parallel worker threads (default ASCII table)
+python -m src.cli --batch ./malware_corpus --batch-workers 8
+
+# Output detailed Markdown report and save to file
+python -m src.cli --batch ./samples --batch-format markdown --batch-report docs/forensic_report.md
+
+# Mass deobfuscate scripts to output directory preserving relative structure
+python -m src.cli --scan-dir ./samples --batch-output ./deobfuscated_out --batch-workers 4
+
+# Export extracted IoCs (URLs, C2 endpoints, file hashes) as structured JSON
+python -m src.cli --batch ./samples --batch-output ./out --batch-export-iocs
+
+# Filter results by minimum risk tier (clean, suspicious, malicious)
+python -m src.cli --batch ./samples --batch-min-risk suspicious --batch-format csv --batch-report report.csv
+```
+
 ### Python API
 
 ```python
@@ -455,6 +488,19 @@ from src.fuzzing import run_fuzz_harness, to_text_report
 fuzz_summary = run_fuzz_harness(iterations=25, seed=42)
 print(to_text_report(fuzz_summary))
 print(f"Safety Pass Rate: {fuzz_summary.pass_rate}%, Unexpected Crashes: {fuzz_summary.unexpected_crashes}")
+
+# 14. Batch Forensic Directory & File Scanning
+from src.batch import scan_directory, scan_files, BatchScanOptions, RiskTier
+batch_summary = scan_directory(
+    "./samples",
+    max_workers=8,
+    export_deobfuscated=True,
+    output_dir="./deobfuscated_out",
+    export_iocs=True,
+    min_risk=RiskTier.SUSPICIOUS,
+)
+print(f"Scanned: {batch_summary.total_files_scanned}, Malicious: {batch_summary.malicious_count}")
+print(batch_summary.to_text_table())
 ```
 
 ---

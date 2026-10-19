@@ -5,6 +5,52 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.0] - 2026-10-19
+
+### Added
+- Batch forensic automation CLI and mass script parallel analyzer:
+  - Forensic models, schemas, and serialization formats (`src/batch_models.py`):
+    - Execution status classification: `ScanStatus` (`SUCCESS`, `SKIPPED`, `TIMEOUT`, `FAILED`).
+    - Risk severity tier taxonomy: `RiskTier` (`CLEAN`, `SUSPICIOUS`, `MALICIOUS`) with ordinal severity ranking (`rank`), comparison operations (`is_at_least`), and case-insensitive string parsing.
+    - Per-file forensic telemetry schema: `FileScanResult` capturing absolute and relative paths, file size, SHA-256 integrity hash, execution status, risk tier, composite risk score (0-100), structured finding reasons, execution latency in milliseconds, encoding used, Shannon entropy before and after deobfuscation, size reduction percentage, carved C2 URLs, AMSI/ETW findings, ExecutionPolicy findings, layer counts (encoded commands, compressed streams, IEX wrappers), AST node validity, and error messages.
+    - Multi-format serialization on `FileScanResult`: `to_dict()`, `to_json()`, `to_markdown()`, `to_csv()`, and formatted ASCII row `to_text_table()`.
+    - Batch scanning configuration options: `BatchScanOptions` supporting target directory or single-file paths, output directory, worker thread count, file extension filtering, recursion toggle, per-script timeout limits, maximum file size guards, deobfuscation export, IoC extraction, minimum risk filtering, and symlink recursion loop controls.
+    - Aggregated batch forensic summary: `BatchSummary` capturing total files discovered/scanned/skipped/failed/timed out, clean/suspicious/malicious distributions, pass rate, malicious rate, total duration, bytes processed, unique carved URLs, AMSI/ETW bypass totals, ExecutionPolicy bypass totals, and result collections.
+    - Multi-format reporting on `BatchSummary`: `to_dict()`, `to_json()`, `to_markdown()`, RFC 4180 `to_csv()`, formatted ASCII table `to_text_table()`, and IoC export (`export_iocs()`).
+  - Safe directory scanner and multi-encoding reader (`src/batch_scanner.py`):
+    - `PowerShellBatchScanner` implementing safe directory traversal with symlink recursion cycle detection via realpath tracking.
+    - Extension filtering supporting case-insensitive multi-extension matching (`.ps1`, `.psm1`, `.psd1`, `.bat`, `.cmd`, `.txt`).
+    - Maximum file size guard skipping oversized files prior to memory allocation.
+    - `read_file_safe()` heuristic decoder handling byte order marks (UTF-8-BOM, UTF-16LE, UTF-16BE), BOM-less UTF-16LE null-alternation heuristics, UTF-8 strict, CP1252 (Windows-1252), and Latin-1 fallback sequences.
+    - Cryptographic SHA-256 hex digest computation and buffer zeroization (`zeroize_buffer`) scrubbing raw bytes from memory upon decoding.
+  - Multithreaded parallel runner and threat scoring engine (`src/batch_runner.py`):
+    - `PowerShellBatchRunner` leveraging `ThreadPoolExecutor` for concurrent script scanning across configurable worker pools (1 to 32 threads).
+    - Per-script timeout enforcement capturing `TimeoutError` and cleanly classifying long-running scripts under `ScanStatus.TIMEOUT`.
+    - Fault-tolerant error isolation preventing individual parse or I/O failures from interrupting batch progress.
+    - Multi-pass fixed-point AST deobfuscation convergence pass (`PowerShellDeobfuscator`) resolving nested Base64 commands, compressed streams, IEX peeling, scope constants, and policy neutralizations.
+    - Shannon entropy telemetry before and after deobfuscation with delta tracking.
+    - Static URL carving and C2 endpoint extraction across raw and deobfuscated payloads.
+    - Multi-factor forensic risk scoring (0.0 to 100.0) mapping threats into `CLEAN`, `SUSPICIOUS`, and `MALICIOUS` tiers based on AMSI patches, memory injection APIs (`VirtualAlloc`, `CreateRemoteThread`, `WriteProcessMemory`), policy bypasses, C2 download cradles, encoded layers, stream compression, and entropy anomalies.
+    - Optional export of deobfuscated scripts preserving relative directory tree structures.
+    - Structured report persistence supporting Text tables, GitHub Markdown, RFC 4180 CSV, and JSON schemas.
+    - Automated IoC extraction packaging all unique URLs, malicious file hashes, and AMSI signature IDs into structured JSON bundles.
+  - Unified public facade (`src/batch.py`):
+    - Exposes high-level helper functions `scan_directory(target_dir, **kwargs)` and `scan_files(file_paths, **kwargs)`.
+    - CLI dispatch engine `run_batch_cli(args)` orchestrating argument binding, directory discovery, parallel execution, risk filtering, and console reporting.
+- Command-line interface switches for batch scanning (`src/cli_args.py`, `src/cli.py`):
+  - Added `--batch` / `--scan-dir`: target directory for batch scanning and forensic analysis.
+  - Added `--batch-output`: destination directory to export deobfuscated scripts and artifacts preserving directory structure.
+  - Added `--batch-workers`: sets concurrent worker thread count (default: 4).
+  - Added `--batch-exts`: comma-separated file extensions to scan (default: `.ps1,.psm1,.psd1,.bat,.cmd,.txt`).
+  - Added `--batch-recursive` / `--no-batch-recursive`: toggle recursive subdirectory traversal (default: True).
+  - Added `--batch-format`: selects report format (`text`, `json`, `markdown`, `csv`).
+  - Added `--batch-report`: destination file path to save batch report.
+  - Added `--batch-timeout`: per-script deobfuscation timeout in seconds (default: 30.0).
+  - Added `--batch-export-iocs`: export all extracted forensic IoCs as structured JSON.
+  - Added `--batch-min-risk`: minimum risk tier filter (`clean`, `suspicious`, `malicious`).
+- Comprehensive unit and integration test coverage (`tests/test_batch_scanner.py`):
+  - 16 new comprehensive unit and integration tests covering enum ranks, schema serialization, recursive directory discovery, file size guards, multi-encoding decoding (UTF-8, UTF-8-BOM, UTF-16LE, UTF-16BE, CP1252), SHA-256 calculation, memory zeroization, multithreaded runner execution, timeout handling, error isolation, risk tier scoring, relative path export, IoC bundling, facade functions, and CLI dispatchers (expanding test suite to 517 tests, 100% pass).
+
 ## [0.19.0] - 2026-10-18
 
 ### Added

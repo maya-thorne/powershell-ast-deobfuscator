@@ -341,11 +341,33 @@ class PowerShellLexer:
                 self.advance()
                 tokens.append(Token(TokenType.OP_ASSIGN, "=", line, col))
                 continue
-            if ch == ":" and self.peek(1) == ":":
-                self.advance()
-                self.advance()
-                tokens.append(Token(TokenType.OP_COLON_COLON, "::", line, col))
-                continue
+            if ch == ":":
+                if self.peek(1) == ":":
+                    self.advance()
+                    self.advance()
+                    tokens.append(Token(TokenType.OP_COLON_COLON, "::", line, col))
+                    continue
+                else:
+                    self.advance()
+                    tokens.append(Token(TokenType.OP_COLON, ":", line, col))
+                    continue
+            if ch == "?":
+                if self.peek(1) == "?":
+                    if self.peek(2) == "=":
+                        self.advance()
+                        self.advance()
+                        self.advance()
+                        tokens.append(Token(TokenType.OP_COALESCE_ASSIGN, "??=", line, col))
+                        continue
+                    else:
+                        self.advance()
+                        self.advance()
+                        tokens.append(Token(TokenType.OP_COALESCE, "??", line, col))
+                        continue
+                else:
+                    self.advance()
+                    tokens.append(Token(TokenType.OP_QUESTION, "?", line, col))
+                    continue
             if ch == ".":
                 if self.peek(1) == ".":
                     self.advance()

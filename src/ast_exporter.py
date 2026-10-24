@@ -11,6 +11,8 @@ from .ast_nodes import (
     ArrayLiteralNode,
     AssignmentNode,
     BinaryOpNode,
+    CoalesceAssignmentNode,
+    CoalesceExpressionNode,
     CommandNode,
     DynamicMemberAccessNode,
     DynamicMethodCallNode,
@@ -31,6 +33,7 @@ from .ast_nodes import (
     StaticMemberAccessNode,
     StringLiteralNode,
     SubexpressionNode,
+    TernaryExpressionNode,
     TypeCastNode,
     UnaryOpNode,
     VariableNode,
@@ -82,13 +85,13 @@ class ASTExporter:
     def _get_mermaid_shape(self, node: ASTNode, node_id: str, label: str) -> str:
         """Assigns semantic shapes in Mermaid based on AST node category."""
         escaped = self._escape_mermaid(label)
-        if isinstance(node, (IfStatementNode, WhileStatementNode, ForStatementNode, ForEachStatementNode)):
+        if isinstance(node, (IfStatementNode, WhileStatementNode, ForStatementNode, ForEachStatementNode, TernaryExpressionNode)):
             return f'{node_id}{{"{escaped}"}}'  # Diamond for control flow
         if isinstance(node, (ScriptBlockNode, SubexpressionNode)):
             return f'{node_id}[["{escaped}"]]'  # Subroutine for scriptblocks and subexpressions
         if isinstance(node, (StringLiteralNode, NumberLiteralNode, VariableNode, IdentifierNode)):
             return f'{node_id}(["{escaped}"])'  # Stadium for literals/variables
-        if isinstance(node, (BinaryOpNode, UnaryOpNode, FormatOpNode)):
+        if isinstance(node, (BinaryOpNode, UnaryOpNode, FormatOpNode, CoalesceExpressionNode, CoalesceAssignmentNode)):
             return f'{node_id}("{escaped}")'  # Rounded for operators
         if isinstance(node, (TypeCastNode, StaticMemberAccessNode, MethodCallNode, MemberAccessNode)):
             return f'{node_id}[/"{escaped}"\\]'  # Trapezoid for types and members
@@ -98,11 +101,11 @@ class ASTExporter:
         """Returns (shape, fillcolor, color) for Graphviz DOT nodes."""
         if isinstance(node, (ScriptBlockNode, SubexpressionNode)):
             return "box", "#e0f2fe", "#0284c7"
-        if isinstance(node, (IfStatementNode, WhileStatementNode, ForStatementNode, ForEachStatementNode)):
+        if isinstance(node, (IfStatementNode, WhileStatementNode, ForStatementNode, ForEachStatementNode, TernaryExpressionNode)):
             return "diamond", "#fee2e2", "#ef4444"
         if isinstance(node, (StringLiteralNode, NumberLiteralNode, VariableNode, IdentifierNode)):
             return "ellipse", "#dcfce7", "#22c55e"
-        if isinstance(node, (BinaryOpNode, UnaryOpNode, FormatOpNode)):
+        if isinstance(node, (BinaryOpNode, UnaryOpNode, FormatOpNode, CoalesceExpressionNode, CoalesceAssignmentNode)):
             return "parallelogram", "#f3e8ff", "#a855f7"
         if isinstance(node, (CommandNode, PipelineNode)):
             return "box", "#fef3c7", "#f59e0b"

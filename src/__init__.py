@@ -5,6 +5,8 @@ Engineered by Maya Thorne.
 
 from .ast_nodes import (
     ASTNode,
+    CoalesceAssignmentNode,
+    CoalesceExpressionNode,
     CommandNode,
     DynamicMemberAccessNode,
     DynamicMethodCallNode,
@@ -16,6 +18,7 @@ from .ast_nodes import (
     ScriptBlockNode,
     StringLiteralNode,
     SubexpressionNode,
+    TernaryExpressionNode,
     UnaryOpNode,
     VariableNode,
     WhileStatementNode,
@@ -188,8 +191,14 @@ from .batch import (
     scan_directory,
     scan_files,
 )
+from .pwsh7 import (
+    PowerShell7Reducer,
+    fold_pwsh7_operators,
+    is_statically_null,
+    is_statically_truthy,
+)
 
-__version__ = "0.20.0"
+__version__ = "0.21.0"
 __all__ = [
     "ScanStatus",
     "RiskTier",
@@ -346,6 +355,13 @@ __all__ = [
     "WhileStatementNode",
     "ForStatementNode",
     "ForEachStatementNode",
+    "CoalesceAssignmentNode",
+    "CoalesceExpressionNode",
+    "TernaryExpressionNode",
+    "PowerShell7Reducer",
+    "fold_pwsh7_operators",
+    "is_statically_truthy",
+    "is_statically_null",
 ]
 
 

@@ -5,6 +5,40 @@ All notable changes to `powershell-ast-deobfuscator` will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.0] - 2026-10-24
+
+### Added
+- PowerShell 7+ (Core / pwsh) AST extensions and operator reduction engine:
+  - Lexical scanner enhancements (`src/tokens.py`, `src/lexer.py`):
+    - Added `TokenType.OP_COALESCE` (`??`), `TokenType.OP_COALESCE_ASSIGN` (`??=`), `TokenType.OP_QUESTION` (`?`), and `TokenType.OP_COLON` (`:`).
+    - Disambiguated single colon (`:`) delimiters from static member double colons (`::`) and drive letter identifiers.
+    - Preserved `?` as an alias for `Where-Object` when positioned in pipeline command slots without ambiguity.
+  - Abstract Syntax Tree node hierarchy (`src/ast_nodes.py`):
+    - `CoalesceExpressionNode`: represents null-coalescing expressions (`left ?? right`).
+    - `CoalesceAssignmentNode`: represents null-coalescing assignments (`variable ??= expression`).
+    - `TernaryExpressionNode`: represents conditional ternary expressions (`condition ? if_true : if_false`).
+  - Recursive descent parser additions (`src/parser.py`):
+    - Implemented `parse_ternary_expression()` and `parse_coalesce_expression()`.
+    - Enforced correct operator precedence where `??` binds tighter than `?:`.
+    - Implemented right-associativity for chained ternary expressions (`$a ? $b : $c ? $d : $e`).
+    - Added `TokenType.OP_COLON` and `TokenType.OP_QUESTION` to command argument stop token boundaries.
+  - PowerShell 7+ static reduction and constant folding engine (`src/pwsh7_reducer.py`):
+    - Evaluates static truthiness across booleans, numbers, strings, arrays, unary negation (`!`, `-not`), and binary comparison/logical operators (`-eq`, `-ne`, `-gt`, `-ge`, `-lt`, `-le`, `-like`, `-notlike`, `-match`, `-notmatch`, `-and`, `-or`, `-xor`).
+    - Evaluates static nullness across `$null`, literal values, bound symbol definitions, and nested coalesce nodes.
+    - Folds ternary expressions with known condition truthiness, performing complete dead code elimination on unused branches.
+    - Folds null-coalescing expressions (`$null ?? 'fallback'` -> `'fallback'`, `'primary' ?? 'fallback'` -> `'primary'`).
+    - Evaluates null-coalescing assignment (`$x ??= val`) with symbol table tracking, eliminating no-op assignments on non-null variables.
+  - Unified public facade (`src/pwsh7.py`):
+    - Exposes high-level helper functions `fold_pwsh7_operators()`, `is_statically_truthy()`, and `is_statically_null()`.
+    - Re-exports `PowerShell7Reducer` and AST node classes.
+  - Multi-pass deobfuscation engine integration (`src/normalizer.py`, `src/deobfuscator_engine.py`):
+    - Integrated `PowerShell7Reducer` into multi-pass convergence passes in `PowerShellNormalizer`.
+    - Updated `to_source()` serialization for `CoalesceExpressionNode`, `CoalesceAssignmentNode`, and `TernaryExpressionNode`.
+    - Added support in AST visualizer (`src/ast_visualizer.py`) and diagram exporter (`src/ast_exporter.py`).
+    - Updated variable scope inliner, lifecycle tracker, and scriptblock simplifier to traverse new operator nodes.
+  - Comprehensive unit and integration test coverage (`tests/test_pwsh7.py`):
+    - 30 new unit and integration tests covering lexer tokens, parser syntax trees, operator precedence, associativity, AST rendering, Mermaid diagram export, truthiness/nullness evaluation, dead branch pruning, and multi-pass fixed-point deobfuscation (expanding test suite to 547 tests, 100% pass).
+
 ## [0.20.0] - 2026-10-19
 
 ### Added

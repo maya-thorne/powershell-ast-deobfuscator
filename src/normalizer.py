@@ -11,6 +11,8 @@ from .ast_nodes import (
     ArrayLiteralNode,
     AssignmentNode,
     BinaryOpNode,
+    CoalesceAssignmentNode,
+    CoalesceExpressionNode,
     CommandNode,
     DynamicMemberAccessNode,
     DynamicMethodCallNode,
@@ -31,6 +33,7 @@ from .ast_nodes import (
     StaticMemberAccessNode,
     StringLiteralNode,
     SubexpressionNode,
+    TernaryExpressionNode,
     TypeCastNode,
     UnaryOpNode,
     VariableNode,
@@ -43,6 +46,7 @@ from .encoded_command_unwrapper import PowerShellEncodedCommandUnwrapper
 from .environment_inliner import PowerShellEnvironmentInliner
 from .iex_unwrapper import PowerShellIEXUnwrapper
 from .pipeline_optimizer import PowerShellPipelineOptimizer
+from .pwsh7_reducer import PowerShell7Reducer
 from .reflection_unwrapper import PowerShellReflectionUnwrapper
 from .scriptblock_simplifier import PowerShellScriptBlockSimplifier
 from .secure_string_reducer import PowerShellSecureStringReducer
@@ -97,6 +101,7 @@ class PowerShellNormalizer:
         self.subexpr_unwrapper = PowerShellSubexpressionUnwrapper(symbols=self.symbols)
         self.iex_unwrapper = PowerShellIEXUnwrapper(symbols=self.symbols, unwrap_iex=self.unwrap_iex)
         self.comp_reducer = PowerShellCompressionReducer(symbols=self.symbols)
+        self.pwsh7_reducer = PowerShell7Reducer(symbols=self.symbols, env=env)
         self.casing_normalizer = PowerShellCasingNormalizer(symbols=self.symbols)
 
     def normalize(self, node: ASTNode) -> ASTNode:
@@ -124,6 +129,8 @@ class PowerShellNormalizer:
         node = self.pipe_optimizer.optimize(node)
         # Pass 9: ScriptBlock & control flow simplification (& { ... }, if ($true))
         node = self.sb_simplifier.simplify(node)
+        # Pass 9.5: PowerShell 7+ operator folding (??, ??=, ?:)
+        node = self.pwsh7_reducer.reduce(node)
         # Pass 10: Subexpression unwrapping ($(...))
         if self.unwrap_subexpr:
             node = self.subexpr_unwrapper.unwrap(node)
@@ -143,6 +150,7 @@ class PowerShellNormalizer:
         node = self.pipe_optimizer.optimize(node)
         node = self.type_resolver.resolve(node)
         node = self.sb_simplifier.simplify(node)
+        node = self.pwsh7_reducer.reduce(node)
         node = self.env_inliner.inline(node)
         if self.inline_scoped_vars or self.eliminate_dead_vars:
             node = self.scope_inliner.inline(node)
@@ -238,6 +246,16 @@ class PowerShellNormalizer:
             )
         elif isinstance(node, SubexpressionNode):
             return SubexpressionNode(statements=[self.visit(s) for s in node.statements])
+        elif isinstance(node, CoalesceExpressionNode):
+            return CoalesceExpressionNode(left=self.visit(node.left), right=self.visit(node.right))
+        elif isinstance(node, CoalesceAssignmentNode):
+            return CoalesceAssignmentNode(variable=self.visit(node.variable), expression=self.visit(node.expression))
+        elif isinstance(node, TernaryExpressionNode):
+            return TernaryExpressionNode(
+                condition=self.visit(node.condition),
+                if_true=self.visit(node.if_true),
+                if_false=self.visit(node.if_false),
+            )
         return node
 
     def visit_script_block(self, node: ScriptBlockNode) -> ScriptBlockNode:
@@ -520,6 +538,15 @@ class PowerShellNormalizer:
                 return f"$({self.to_source(node.statements[0])})"
             stmts_str = "; ".join(self.to_source(s) for s in node.statements)
             return f"$({stmts_str})"
+
+        if isinstance(node, CoalesceExpressionNode):
+            return f"{self.to_source(node.left)} ?? {self.to_source(node.right)}"
+
+        if isinstance(node, CoalesceAssignmentNode):
+            return f"{self.to_source(node.variable)} ??= {self.to_source(node.expression)}"
+
+        if isinstance(node, TernaryExpressionNode):
+            return f"{self.to_source(node.condition)} ? {self.to_source(node.if_true)} : {self.to_source(node.if_false)}"
 
         return ""
 

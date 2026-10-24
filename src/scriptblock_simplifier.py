@@ -11,6 +11,8 @@ from .ast_nodes import (
     ArrayLiteralNode,
     AssignmentNode,
     BinaryOpNode,
+    CoalesceAssignmentNode,
+    CoalesceExpressionNode,
     CommandNode,
     DynamicMemberAccessNode,
     DynamicMethodCallNode,
@@ -29,6 +31,7 @@ from .ast_nodes import (
     StaticMemberAccessNode,
     StringLiteralNode,
     SubexpressionNode,
+    TernaryExpressionNode,
     TypeCastNode,
     UnaryOpNode,
     VariableNode,
@@ -92,6 +95,16 @@ class PowerShellScriptBlockSimplifier:
             return IndexAccessNode(target=self.visit(node.target), index=self.visit(node.index))
         elif isinstance(node, ArrayLiteralNode):
             return ArrayLiteralNode(elements=[self.visit(e) for e in node.elements])
+        elif isinstance(node, CoalesceExpressionNode):
+            return CoalesceExpressionNode(left=self.visit(node.left), right=self.visit(node.right))
+        elif isinstance(node, CoalesceAssignmentNode):
+            return CoalesceAssignmentNode(variable=self.visit(node.variable), expression=self.visit(node.expression))
+        elif isinstance(node, TernaryExpressionNode):
+            return TernaryExpressionNode(
+                condition=self.visit(node.condition),
+                if_true=self.visit(node.if_true),
+                if_false=self.visit(node.if_false),
+            )
         return node
 
     def visit_script_block(self, node: ScriptBlockNode) -> ScriptBlockNode:

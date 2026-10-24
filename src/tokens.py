@@ -27,6 +27,12 @@ class TokenType(Enum):
 
     OP_RANGE = auto()             # .. (range operator)
 
+    # PowerShell 7+ Operators
+    OP_COALESCE = auto()          # ?? (null-coalescing)
+    OP_COALESCE_ASSIGN = auto()   # ??= (null-coalescing assignment)
+    OP_QUESTION = auto()          # ? (ternary question / Where-Object alias)
+    OP_COLON = auto()             # : (ternary branch delimiter)
+
     # Delimiters
     LPAREN = auto()               # (
     RPAREN = auto()               # )

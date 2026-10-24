@@ -10,6 +10,8 @@ from .ast_nodes import (
     ArrayLiteralNode,
     AssignmentNode,
     BinaryOpNode,
+    CoalesceAssignmentNode,
+    CoalesceExpressionNode,
     CommandNode,
     DynamicMemberAccessNode,
     DynamicMethodCallNode,
@@ -30,6 +32,7 @@ from .ast_nodes import (
     StaticMemberAccessNode,
     StringLiteralNode,
     SubexpressionNode,
+    TernaryExpressionNode,
     TypeCastNode,
     UnaryOpNode,
     VariableNode,
@@ -105,6 +108,8 @@ class PowerShellParser:
         if self.current().type == TokenType.VARIABLE:
             save_pos = self.pos
             target = self.parse_expression()
+            if isinstance(target, CoalesceAssignmentNode):
+                return target
             if self.current().type == TokenType.OP_ASSIGN:
                 self.advance()  # Skip '='
                 expr = self.parse_pipeline()
@@ -137,6 +142,13 @@ class PowerShellParser:
                 return AssignmentNode(
                     variable=target,
                     expression=BinaryOpNode(left=target, operator="-", right=NumberLiteralNode(value=1, raw="1")),
+                )
+            elif self.current().type == TokenType.OP_COALESCE_ASSIGN:
+                self.advance()  # Skip '??='
+                expr = self.parse_pipeline()
+                return CoalesceAssignmentNode(
+                    variable=target,
+                    expression=expr,
                 )
             self.pos = save_pos
 
@@ -253,6 +265,8 @@ class PowerShellParser:
                 TokenType.RPAREN,
                 TokenType.RBRACE,
                 TokenType.COMMA,
+                TokenType.OP_COLON,
+                TokenType.OP_QUESTION,
             ):
                 arg = self.parse_expression()
                 if arg:
@@ -265,7 +279,27 @@ class PowerShellParser:
         return expr
 
     def parse_expression(self) -> ASTNode:
-        return self.parse_format_or_join_expression()
+        expr = self.parse_ternary_expression()
+        if self.match(TokenType.OP_COALESCE_ASSIGN):
+            val = self.parse_expression()
+            return CoalesceAssignmentNode(variable=expr, expression=val)
+        return expr
+
+    def parse_ternary_expression(self) -> ASTNode:
+        expr = self.parse_coalesce_expression()
+        if self.match(TokenType.OP_QUESTION):
+            if_true = self.parse_ternary_expression()
+            self.expect(TokenType.OP_COLON)
+            if_false = self.parse_ternary_expression()
+            return TernaryExpressionNode(condition=expr, if_true=if_true, if_false=if_false)
+        return expr
+
+    def parse_coalesce_expression(self) -> ASTNode:
+        left = self.parse_format_or_join_expression()
+        if self.match(TokenType.OP_COALESCE):
+            right = self.parse_coalesce_expression()
+            return CoalesceExpressionNode(left=left, right=right)
+        return left
 
     def parse_format_or_join_expression(self) -> ASTNode:
         left = self.parse_range_expression()
@@ -590,6 +624,12 @@ class PowerShellParser:
                 scope = parts[0]
                 name = parts[1]
             return VariableNode(name=name, scope=scope)
+
+        # PowerShell 7+ standalone question mark or colon in primary position (e.g. pipeline Where-Object alias)
+        if self.match(TokenType.OP_QUESTION):
+            return IdentifierNode(name="?")
+        if self.match(TokenType.OP_COLON):
+            return IdentifierNode(name=":")
 
         # Identifiers
         if tok.type == TokenType.IDENTIFIER:

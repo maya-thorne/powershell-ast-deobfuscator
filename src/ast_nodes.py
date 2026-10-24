@@ -199,6 +199,23 @@ class ForEachStatementNode(ASTNode):
     body: Optional[ASTNode] = None
 
 
+@dataclass
+class CoalesceExpressionNode(ASTNode):
+    """Represents PowerShell 7+ null-coalescing expression: left ?? right."""
+    left: ASTNode
+    right: ASTNode
 
 
+@dataclass
+class CoalesceAssignmentNode(ASTNode):
+    """Represents PowerShell 7+ null-coalescing assignment: variable ??= expression."""
+    variable: ASTNode
+    expression: ASTNode
 
+
+@dataclass
+class TernaryExpressionNode(ASTNode):
+    """Represents PowerShell 7+ ternary expression: condition ? if_true : if_false."""
+    condition: ASTNode
+    if_true: ASTNode
+    if_false: ASTNode

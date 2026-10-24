@@ -10,6 +10,8 @@ from .ast_nodes import (
     ArrayLiteralNode,
     AssignmentNode,
     BinaryOpNode,
+    CoalesceAssignmentNode,
+    CoalesceExpressionNode,
     CommandNode,
     DynamicMemberAccessNode,
     DynamicMethodCallNode,
@@ -30,6 +32,7 @@ from .ast_nodes import (
     StaticMemberAccessNode,
     StringLiteralNode,
     SubexpressionNode,
+    TernaryExpressionNode,
     TypeCastNode,
     UnaryOpNode,
     VariableNode,
@@ -180,6 +183,15 @@ class ASTVisualizer:
         if isinstance(node, ForEachStatementNode):
             return "ForEachStatement"
 
+        if isinstance(node, CoalesceExpressionNode):
+            return "CoalesceExpression: left ?? right"
+
+        if isinstance(node, CoalesceAssignmentNode):
+            return "CoalesceAssignment: var ??= expr"
+
+        if isinstance(node, TernaryExpressionNode):
+            return "TernaryExpression: cond ? if_true : if_false"
+
         return node.__class__.__name__
 
     def get_children(self, node: ASTNode) -> List[Tuple[str, ASTNode]]:
@@ -293,6 +305,19 @@ class ASTVisualizer:
                 children.append(("collection", node.collection))
             if node.body:
                 children.append(("body", node.body))
+
+        elif isinstance(node, CoalesceExpressionNode):
+            children.append(("left", node.left))
+            children.append(("right", node.right))
+
+        elif isinstance(node, CoalesceAssignmentNode):
+            children.append(("variable", node.variable))
+            children.append(("expression", node.expression))
+
+        elif isinstance(node, TernaryExpressionNode):
+            children.append(("condition", node.condition))
+            children.append(("if_true", node.if_true))
+            children.append(("if_false", node.if_false))
 
         return children
 

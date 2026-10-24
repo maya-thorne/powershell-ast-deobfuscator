@@ -11,6 +11,8 @@ from .ast_nodes import (
     ArrayLiteralNode,
     AssignmentNode,
     BinaryOpNode,
+    CoalesceAssignmentNode,
+    CoalesceExpressionNode,
     CommandNode,
     DynamicMemberAccessNode,
     DynamicMethodCallNode,
@@ -31,6 +33,7 @@ from .ast_nodes import (
     StaticMemberAccessNode,
     StringLiteralNode,
     SubexpressionNode,
+    TernaryExpressionNode,
     TypeCastNode,
     UnaryOpNode,
     VariableNode,
@@ -128,6 +131,15 @@ class PowerShellVariableLifecycleTracker:
         elif isinstance(node, SubexpressionNode):
             for s in node.statements:
                 self.visit(s)
+        elif isinstance(node, CoalesceAssignmentNode):
+            self.visit_coalesce_assignment(node)
+        elif isinstance(node, CoalesceExpressionNode):
+            self.visit(node.left)
+            self.visit(node.right)
+        elif isinstance(node, TernaryExpressionNode):
+            self.visit(node.condition)
+            self.visit(node.if_true)
+            self.visit(node.if_false)
 
     def visit_script_block(self, node: ScriptBlockNode) -> None:
         if node.is_nested:
@@ -141,6 +153,21 @@ class PowerShellVariableLifecycleTracker:
             for stmt in node.statements:
                 self._statement_counter += 1
                 self.visit(stmt)
+
+    def visit_coalesce_assignment(self, node: CoalesceAssignmentNode) -> None:
+        self._statement_counter += 1
+        self.visit(node.expression)
+        target = node.variable
+        if isinstance(target, VariableNode):
+            self.chain.resolve_write(
+                var_name=target.name,
+                scope_qualifier=target.scope,
+                value_node=node.expression,
+                ast_node=node,
+                stmt_idx=self._statement_counter,
+            )
+        else:
+            self.visit(target)
 
     def visit_assignment(self, node: AssignmentNode) -> None:
         self._statement_counter += 1

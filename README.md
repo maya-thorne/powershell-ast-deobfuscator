@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.20.0-blue.svg?style=flat-square" alt="Release v0.20.0" /></a>
+  <a href="https://github.com/maya-thorne/powershell-ast-deobfuscator"><img src="https://img.shields.io/badge/Release-v0.21.0-blue.svg?style=flat-square" alt="Release v0.21.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MT--SRL-emerald.svg?style=flat-square" alt="License MT-SRL" /></a>
   <a href="ROADMAP.md"><img src="https://img.shields.io/badge/Roadmap-Active-purple.svg?style=flat-square" alt="Roadmap Active" /></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Policy-red.svg?style=flat-square" alt="Security Policy" /></a>
@@ -58,6 +58,7 @@ The deobfuscation engine executes a multi-pass fixed-point reduction loop:
 14. **Recursive IEX Unwrapping (`src/iex_unwrapper.py`)**: Recursively detects and peels nested `iex`, `Invoke-Expression`, call/dot operator executions, ScriptBlock API invocations (`[scriptblock]::Create($code).Invoke()`), and multi-stage pipeline streams (`... | iex | iex`), peeling execution layers down to raw payloads while preserving download cradles and guarding against recursion loops.
 15. **AMSI &amp; ETW Bypass Detection &amp; Neutralization (`src/amsi_etw_signatures.py`, `src/amsi_etw_detector.py`)**: Scans for memory patching (`AmsiScanBuffer`, `EtwEventWrite`, `WLDP`) and reflection tampering (`amsiInitFailed`, `etwProvider`, `m_enabled`, `cachedGroupPolicySettings`), outputting forensic telemetry and surgically neutralizing bypass code blocks.
 16. **AST Normalization &amp; Constant Folding (`src/normalizer.py`)**: Inlines string formats (`-f`), collapses string concatenations, strips parentheses artifacts, reduces call operators, and serializes clean syntax.
+17. **PowerShell 7+ (Core / pwsh) AST Extensions &amp; Operator Reduction (`src/pwsh7_reducer.py`, `src/pwsh7.py`)**: Recognizes and reduces PowerShell 7+ null-coalescing (`??`), null-coalescing assignment (`??=`), and ternary (`?:`) operators with right-associative precedence, static truthiness and nullness branch pruning, and dead code elimination.
 17. **Fixed-Point Convergence (`src/deobfuscator_engine.py`)**: Iterates reduction passes until the code reaches a stable, non-mutating fixed point.
 18. **DownloadString &amp; WebClient API URL Carving (`src/webclient_tracer.py`)**: Statically traces and extracts remote payload download cradles, decodes obfuscated DWORD/hex/octal IPs, binds headers and proxies, and outputs normalized URLs.
 19. **Automated Benchmark Harness &amp; Telemetry (`src/benchmark.py`)**: Runs evaluation over a 30-sample corpus across 10 categories, calculating Shannon entropy, artifact removal, ground-truth indicator recall, and composite fidelity score.
@@ -501,6 +502,13 @@ batch_summary = scan_directory(
 )
 print(f"Scanned: {batch_summary.total_files_scanned}, Malicious: {batch_summary.malicious_count}")
 print(batch_summary.to_text_table())
+
+# 15. PowerShell 7+ Operator Folding & Dead Code Elimination
+from src.pwsh7 import fold_pwsh7_operators, is_statically_truthy, is_statically_null
+pwsh7_code = "$res = (1 -eq 1) ? ('i' + 'ex') : 'exit'; $cfg = $null ?? 'default_setting'"
+cleaned_pwsh7 = engine.deobfuscate(pwsh7_code)
+print(cleaned_pwsh7)
+# Output: $res = 'iex'; $cfg = 'default_setting'
 ```
 
 ---
